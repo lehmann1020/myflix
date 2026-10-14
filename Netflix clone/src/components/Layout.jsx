@@ -1,5 +1,6 @@
 import { Link, NavLink, Outlet } from 'react-router-dom'
 import DetailModal from './DetailModal.jsx'
+import PlayerScreen from './PlayerScreen.jsx'
 
 export default function Layout() {
   return (
@@ -17,6 +18,7 @@ export default function Layout() {
         <Outlet />
       </main>
       <DetailModal />
+      <PlayerScreen />
     </>
   )
 }

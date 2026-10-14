@@ -9,6 +9,7 @@ export function MyFlixProvider({ children }) {
   const [progress, setProgress] = useState({})
   const [notes, setNotes] = useState({})
   const [openId, setOpenId] = useState(null)
+  const [playingId, setPlayingId] = useState(null)
 
   const toggleFavorite = useCallback((id) => {
     setFavorites((prev) => {
@@ -20,6 +21,7 @@ export function MyFlixProvider({ children }) {
   }, [])
 
   const watch = useCallback((item) => {
+    setPlayingId(item.id)
     setProgress((prev) => {
       const next = { ...prev }
       const value = nextProgress(item, prev[item.id])
@@ -32,8 +34,8 @@ export function MyFlixProvider({ children }) {
   const setNote = useCallback((id, text) => setNotes((prev) => ({ ...prev, [id]: text })), [])
 
   const value = useMemo(
-    () => ({ genres, setGenres, favorites, toggleFavorite, progress, watch, notes, setNote, openId, setOpenId }),
-    [genres, favorites, toggleFavorite, progress, watch, notes, setNote, openId],
+    () => ({ genres, setGenres, favorites, toggleFavorite, progress, watch, notes, setNote, openId, setOpenId, playingId, setPlayingId }),
+    [genres, favorites, toggleFavorite, progress, watch, notes, setNote, openId, playingId],
   )
   return <MyFlixContext.Provider value={value}>{children}</MyFlixContext.Provider>
 }
