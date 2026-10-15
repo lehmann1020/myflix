@@ -1,3 +1,5 @@
+import { GENRES } from './genres.js'
+
 // Invented placeholder titles. Posters are generated from `hue`, so there are no image assets.
 const t = (id, title, type, genres, hue, description, full, why) => ({
   id, title, type, genres, hue, description, full, why,
@@ -106,6 +108,15 @@ export const CATALOG = [
     'A radio host realizes the caller knows where she lives.',
     'During her late-night call-in show, a host realizes one caller is describing her own house in real time. The producers think it is a bit. She does not.',
     'Tight, contained and a masterclass in tension.'),
+
+  t('choco-is-the-taco', 'Choco is the Taco', 'movie', GENRES, 25,
+    'A cool dog in shades proves he is the whole fiesta.',
+    'Choco slides on his shades, settles into the blankets and shows the world exactly why he is the taco. Cool, cozy and impossible to resist.',
+    'Effortlessly cool. The sunglasses steal the show.'),
+  t('georgie-is-the-moomoo', 'Georgie is the Moomoo', 'movie', GENRES, 200,
+    'Belly up and grinning, Georgie is the one and only Moomoo.',
+    'Georgie rolls over, flashes the biggest grin in the house and demands belly rubs. A joyful, fluffy comedy about the one and only Moomoo.',
+    'Pure joy. Guaranteed to make you smile.'),
 ]
 
 export const getTitle = (id) => CATALOG.find((c) => c.id === id)
