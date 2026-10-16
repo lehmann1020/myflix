@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { getTitle } from '../data/catalog.js'
 import { useMyFlix } from '../state/useMyFlix.js'
 
 export default function PlayerScreen() {
-  const { playingId } = useMyFlix()
+  const { playingId, getTitle } = useMyFlix()
   const item = playingId ? getTitle(playingId) : null
   return item ? <Player key={item.id} item={item} /> : null
 }
@@ -37,7 +36,7 @@ function Player({ item }) {
       aria-labelledby="player-title"
       onCancel={(e) => { e.preventDefault(); close() }}
     >
-      <img className="player-bg" src={`/posters/${item.id}.jpg`} alt="" />
+      <img className="player-bg" src={item.poster} alt="" />
       <div className="player-content">
         <p className="player-eq" aria-hidden="true"><i /><i /><i /><i /></p>
         <h2 id="player-title">Playing the {item.title}</h2>

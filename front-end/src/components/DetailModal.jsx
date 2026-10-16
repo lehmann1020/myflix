@@ -1,16 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
-import { getTitle } from '../data/catalog.js'
 import { useMyFlix } from '../state/useMyFlix.js'
 import Poster from './Poster.jsx'
 
 export default function DetailModal() {
-  const { openId } = useMyFlix()
+  const { openId, getTitle } = useMyFlix()
   const item = openId ? getTitle(openId) : null
   return item ? <Dialog key={item.id} item={item} /> : null
 }
 
 function Dialog({ item }) {
-  const { favorites, toggleFavorite, progress, watch, notes, setNote, setOpenId } = useMyFlix()
+  const { favorites, toggleFavorite, progress, watch, setOpenId } = useMyFlix()
   const ref = useRef(null)
   const [closing, setClosing] = useState(false)
   const isFav = favorites.has(item.id)
@@ -45,7 +44,7 @@ function Dialog({ item }) {
       <button type="button" className="modal-close" aria-label="Close details" onClick={close}>
         <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
       </button>
-      <div className="modal-poster"><Poster id={item.id} title={item.title} hue={item.hue} /></div>
+      <div className="modal-poster"><Poster src={item.poster} title={item.title} hue={item.hue} /></div>
       <div className="modal-body">
         <div className="modal-head">
           <div>
@@ -65,10 +64,6 @@ function Dialog({ item }) {
           </button>
         </div>
         <p className="modal-full">{item.full}</p>
-        <label className="modal-field">
-          <span>Why I like it</span>
-          <textarea rows={3} value={notes[item.id] ?? item.why} onChange={(e) => setNote(item.id, e.target.value)} />
-        </label>
         <div className="modal-watch">
           <p className="modal-left">Left off <strong>{progress[item.id] ?? 'Not started'}</strong></p>
           <button type="button" className="btn-primary" onClick={() => watch(item)}>

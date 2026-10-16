@@ -179,12 +179,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .modal-head h2 { font-size: 1.9rem; }
 .modal-meta { margin: 6px 0 0; color: var(--muted); font-size: 0.9rem; }
 .modal-full { margin: 0; line-height: 1.65; }
-.modal-field { display: flex; flex-direction: column; gap: 6px; font-size: 0.8125rem; color: var(--muted); }
-.modal-field textarea {
-  padding: 10px 12px; border-radius: 8px; border: 1px solid var(--raised); background: var(--bg);
-  color: var(--text); font: inherit; font-size: 1rem; resize: vertical;
-}
-.modal-field textarea:focus-visible { border-color: var(--accent); outline-offset: 0; }
 .modal-close {
   position: absolute; top: 14px; right: 14px; z-index: 1; width: 40px; height: 40px; display: grid; place-items: center;
   border: 0; border-radius: 50%; background: var(--raised); transition: background 150ms, transform 150ms var(--ease);
@@ -227,3 +221,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .player-eq i:nth-child(3) { animation-delay: -600ms; }
 .player-eq i:nth-child(4) { animation-delay: -150ms; }
 @keyframes eq { from { transform: scaleY(0.25); } to { transform: scaleY(1); } }
+
+/* Loading and error messages */
+.status-msg { margin: 48px auto; max-width: 52ch; text-align: center; color: var(--muted); font-size: 1rem; line-height: 1.5; }
+.status-msg.error { color: var(--danger); }

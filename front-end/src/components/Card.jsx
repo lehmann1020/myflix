@@ -9,7 +9,7 @@ export default function Card({ item }) {
     <article className="card">
       <div className="card-media">
         <button type="button" className="card-open" onClick={() => setOpenId(item.id)} aria-label={`Open details for ${item.title}`}>
-          <Poster id={item.id} title={item.title} hue={item.hue} />
+          <Poster src={item.poster} title={item.title} hue={item.hue} />
         </button>
         <button
           type="button"

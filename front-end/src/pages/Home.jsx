@@ -1,17 +1,16 @@
 import { useMemo } from 'react'
-import { CATALOG } from '../data/catalog.js'
 import Carousel from '../components/Carousel.jsx'
 import { useMyFlix } from '../state/useMyFlix.js'
 
 export default function Home() {
-  const { genres, progress } = useMyFlix()
+  const { titles, genres, progress } = useMyFlix()
 
   const picks = useMemo(() => {
     const score = (c) => c.genres.filter((g) => genres.includes(g)).length
-    return CATALOG.filter((c) => score(c) > 0).sort((a, b) => score(b) - score(a))
-  }, [genres])
+    return titles.filter((c) => score(c) > 0).sort((a, b) => score(b) - score(a))
+  }, [titles, genres])
 
-  const watching = CATALOG.filter((c) => progress[c.id])
+  const watching = titles.filter((c) => progress[c.id])
 
   return (
     <div className="page home">
