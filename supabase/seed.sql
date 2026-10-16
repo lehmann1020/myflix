@@ -1,6 +1,6 @@
--- Seed data: the 24 placeholder titles from myflix_app/src/data/catalog.js and their genres.
+-- Seed data: the 24 placeholder titles from front-end/src/data/catalog.js and their genres.
 -- Generated from that file; titles and genres are matched by NAME (no hard-coded ids), so it is safe to re-read.
--- poster_url is the app's public path (the images live in myflix_app/public/posters/).
+-- poster_url is the app's public path (the images live in front-end/public/posters/).
 
 insert into public.titles (name, type, description, full_description, why_i_like_it, poster_url) values
   ('Iron Meridian', 'movie', 'A courier races across a collapsing orbital highway.', 'When a courier is handed a sealed case on the last shuttle out of a failing orbital ring, every faction on the station wants it. Over one sleepless night she has to cross twelve districts, three blockades and her own past to deliver it before the ring falls.', 'Relentless pacing and practical-feeling stunts. The ring-city worldbuilding is gorgeous.', '/posters/iron-meridian.jpg'),

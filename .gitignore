@@ -2,3 +2,7 @@
 .obsidian/
 .claude/
 .playwright-mcp/
+
+# Environment files (keys) - never commit
+.env
+.env.*
