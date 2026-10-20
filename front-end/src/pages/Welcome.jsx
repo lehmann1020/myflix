@@ -1,11 +1,27 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMyFlix } from '../state/useMyFlix.js'
+import { useAuth } from '../state/useAuth.js'
 
 const MAX_GENRES = 3
 
 export default function Welcome() {
-  const { genreOptions, genres, loading, error } = useMyFlix()
+  const { genreOptions, genres, loading, error, profile } = useMyFlix()
+  const { user, signOut } = useAuth()
+  const [signingOut, setSigningOut] = useState(false)
+  const [signOutError, setSignOutError] = useState(null)
+
+  // RequireAuth sends us to /login once the user is gone.
+  async function onSignOut() {
+    setSigningOut(true)
+    setSignOutError(null)
+    try {
+      await signOut()
+    } catch (err) {
+      setSignOutError(err)
+      setSigningOut(false)
+    }
+  }
 
   return (
     <main className="welcome">
@@ -21,6 +37,16 @@ export default function Welcome() {
         // Mounted only after loading, so the saved picks are the initial selection.
         <GenrePicker options={genreOptions} saved={genres} />
       )}
+
+      {signOutError && (
+        <p className="auth-error" role="alert">You were not logged out. {signOutError.message.replace(/\.$/, '')}. Try again.</p>
+      )}
+      <p className="auth-switch">
+        Not {profile?.name ?? user?.email}?{' '}
+        <button type="button" className="link-button" onClick={onSignOut} disabled={signingOut}>
+          {signingOut ? 'Logging out…' : 'Log out'}
+        </button>
+      </p>
     </main>
   )
 }

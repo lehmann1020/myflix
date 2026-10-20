@@ -1,42 +1,38 @@
 -- ============================================================================
--- MyFlix schema — revised version (v2)
--- Based on supabase/task-manager-erd.png, with the review changes you approved.
+-- MyFlix schema — v3 (with authentication)
 -- Target: the MyFlix Supabase project, PostgreSQL 17.
 --
--- STATUS: APPLIED to the database (7 migrations, one per table, 2026-10-15). Kept here as the readable source of truth.
--- Seed data (24 titles + genre links) is in supabase/seed.sql.
+-- STATUS: APPLIED to the database on 2026-10-19 as 4 migrations:
+--   auth_01_users, auth_02_tables, auth_02_seed_catalog (= seed.sql + genres), auth_03_policies.
+-- Kept here as the readable source of truth. Catalog seed data is in supabase/seed.sql.
+-- Pre-auth data backups (single dev user, no login) are in supabase/backups/ and are NOT re-imported.
 --
 -- DECISIONS (yours):
---   * Anonymous sign-in now; public.users.id links to Supabase Auth (auth.users)
---   * movies + shows merged into ONE table, titles(type = 'movie' | 'show')   ("whatever is best")
---   * Genres: the user picks exactly 3 at first login (max 3 enforced here; "exactly 3" is the app's job)
---   * Progress is free text like 'S2E4' (shows) or '1:23:45' (movies)
---   * movies.favorite / shows.favorite booleans removed; the favorites table is kept
---   * Row Level Security POLICIES are NOT written here — you will add them.
---     (This project's ensure_rls event trigger turns RLS ON for every new public table, so until you add
---      policies the tables are invisible to the API. The explicit "enable row level security" lines below
---      only document that.)
---
--- Creation order (each step is one pause for you to verify in the dashboard):
---   1. users (+ trigger that creates a users row for every new auth user)
---   2. genres (+ the 7 genre names)
---   3. titles
---   4. title_genres
---   5. user_genres
---   6. favorites
---   7. in_progress (+ auto-updating updated_at)
+--   * Supabase Auth, email + password. public.users.id IS the auth.users id; a trigger creates the row.
+--   * Every user_id column: NOT NULL, DEFAULT auth.uid(), ON DELETE CASCADE. The app never sends a user id.
+--   * RLS policies are to `authenticated` only. Logged-out visitors (anon) have no table access at all.
+--     - users:                     read + update (name only) your own row
+--     - genres, titles, title_genres: shared catalog, read-only
+--     - user_genres, favorites, in_progress: only your own rows (select/insert/update/delete)
+--   * TRUNCATE is revoked from API roles (it ignores RLS).
+--   * movies + shows are ONE table, titles(type = 'movie' | 'show').
+--   * Genres: the user picks exactly 3 (max 3 enforced here; "exactly 3" is the app's job).
+--   * Progress is free text like 'S2E4' (shows) or '1:23:45' (movies).
+--   * No database functions are called by the app (no supabase.rpc), so none are defined besides the trigger.
+--   * rls_auto_enable() is a project function we did not create; it is not touched here.
 --
 -- Conventions: snake_case; text (not varchar); timestamptz; uuid ids default gen_random_uuid()
 -- (uuidv7() needs PostgreSQL 18; this project is on 17); NOT NULL wherever a value is required;
 -- every foreign key has an ON DELETE rule and an index that starts with the FK column.
+-- Policies use (select auth.uid()) so Postgres evaluates it once per query, not once per row.
 -- ============================================================================
 
 
--- ---------------------------------------------------------------------------
--- 1. users — one row per Supabase Auth user (anonymous or permanent)
--- ---------------------------------------------------------------------------
--- id has NO default: it IS the auth user's id. name/email stay NULL for anonymous users and are
--- filled in later when the user signs up with an email (story 1).
+-- ===========================================================================
+-- STEP 1 — users (migration auth_01_users)
+-- ===========================================================================
+
+-- users — one row per Supabase Auth user. id has NO default: it IS the auth user's id.
 create table public.users (
   id         uuid primary key references auth.users (id) on delete cascade,
   name       text,
@@ -46,14 +42,18 @@ create table public.users (
   check (email is null or btrim(email) <> '')
 );
 
--- Case-insensitive unique email (A@x.com and a@x.com cannot both exist). NULLs (anonymous users) are allowed.
+-- Case-insensitive unique email (A@x.com and a@x.com cannot both exist).
 create unique index users_email_lower_key on public.users (lower(email)) where email is not null;
 
 alter table public.users enable row level security;
 
--- 1b. Create the public.users row automatically whenever Supabase Auth creates a user
---     (including anonymous sign-ins). SECURITY DEFINER because the signing-in user has no permission
---     to insert here; execute is revoked from every API role so it can't be called through the REST API.
+revoke all on public.users from anon;
+revoke insert, delete on public.users from authenticated;
+
+-- Create the public.users row whenever Supabase Auth creates a user. `name` comes from the sign-up
+-- metadata (supabase.auth.signUp({ ..., options: { data: { name } } })).
+-- SECURITY DEFINER because the new user has no permission to insert here; execute is revoked from every
+-- API role so it can't be called through the REST API.
 create function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -62,7 +62,9 @@ set search_path = ''
 as $$
 begin
   insert into public.users (id, name, email)
-  values (new.id, nullif(btrim(new.raw_user_meta_data ->> 'name'), ''), nullif(btrim(new.email), ''));
+  values (new.id,
+          nullif(btrim(new.raw_user_meta_data ->> 'name'), ''),
+          nullif(btrim(new.email), ''));
   return new;
 end;
 $$;
@@ -74,23 +76,18 @@ create trigger on_auth_user_created
   for each row execute function public.handle_new_user();
 
 
--- ---------------------------------------------------------------------------
--- 2. genres — the pick-list for onboarding
--- ---------------------------------------------------------------------------
+-- ===========================================================================
+-- STEP 2 — the other tables (migration auth_02_tables)
+-- ===========================================================================
+
+-- genres — the pick-list for onboarding (shared catalog)
 create table public.genres (
   id   uuid primary key default gen_random_uuid(),
   name text not null unique check (btrim(name) <> '')
 );
-
 alter table public.genres enable row level security;
 
-insert into public.genres (name) values
-  ('Action'), ('Comedy'), ('Drama'), ('Sci-Fi'), ('Horror'), ('Romance'), ('Thriller');
-
-
--- ---------------------------------------------------------------------------
--- 3. titles — movies and shows in one table (replaces the diagram's movies + shows)
--- ---------------------------------------------------------------------------
+-- titles — movies and shows in one table (shared catalog)
 create table public.titles (
   id               uuid primary key default gen_random_uuid(),
   name             text not null check (btrim(name) <> ''),
@@ -103,68 +100,45 @@ create table public.titles (
   created_at       timestamptz not null default now(),
   unique (type, name)
 );
-
 alter table public.titles enable row level security;
 
-
--- ---------------------------------------------------------------------------
--- 4. title_genres — which genres a title belongs to (many-to-many)
--- ---------------------------------------------------------------------------
+-- title_genres — which genres a title belongs to (shared catalog, many-to-many)
 create table public.title_genres (
   title_id uuid not null references public.titles (id) on delete cascade,
   genre_id uuid not null references public.genres (id) on delete cascade,
   primary key (title_id, genre_id)
 );
-
 create index title_genres_genre_id_idx on public.title_genres (genre_id);
-
 alter table public.title_genres enable row level security;
 
-
--- ---------------------------------------------------------------------------
--- 5. user_genres — the (up to) 3 genres each user picks at first login (story 2)
--- ---------------------------------------------------------------------------
--- pick_order 1..3 + UNIQUE (user_id, pick_order) makes "at most 3 per user" a database rule with no
--- trigger. "Exactly 3" is enforced by the app's onboarding screen (it cannot be a simple constraint).
+-- user_genres — the (up to) 3 genres each user picks at first login.
+-- pick_order 1..3 + UNIQUE (user_id, pick_order) makes "at most 3 per user" a database rule.
 create table public.user_genres (
-  user_id    uuid not null references public.users (id) on delete cascade,
+  user_id    uuid not null default auth.uid() references public.users (id) on delete cascade,
   genre_id   uuid not null references public.genres (id) on delete cascade,
   pick_order smallint not null check (pick_order between 1 and 3),
   primary key (user_id, genre_id),
   unique (user_id, pick_order)
 );
-
 create index user_genres_genre_id_idx on public.user_genres (genre_id);
-
 alter table public.user_genres enable row level security;
 
-
--- ---------------------------------------------------------------------------
--- 6. favorites — a user's starred titles (story 3)
--- ---------------------------------------------------------------------------
--- UNIQUE (user_id, title_id) stops the same favorite being added twice, and also serves as the
--- index for "all favorites of a user". The extra index covers "who favorited this title" and deletes.
+-- favorites — a user's starred titles. UNIQUE (user_id, title_id) also indexes "all favorites of a user".
 create table public.favorites (
   id         uuid primary key default gen_random_uuid(),
-  user_id    uuid not null references public.users (id)  on delete cascade,
+  user_id    uuid not null default auth.uid() references public.users (id)  on delete cascade,
   title_id   uuid not null references public.titles (id) on delete cascade,
   created_at timestamptz not null default now(),
   unique (user_id, title_id)
 );
-
 create index favorites_title_id_idx on public.favorites (title_id);
-
 alter table public.favorites enable row level security;
 
-
--- ---------------------------------------------------------------------------
--- 7. in_progress — titles a user started but hasn't finished, and where they left off (story 4)
--- ---------------------------------------------------------------------------
--- left_off is free text, as in the app: 'S2E4' for a show, '1:23:45' for a movie (max 24 characters).
--- One row per (user, title). finished = true keeps the history but drops it from "Continue watching".
+-- in_progress — where a user left off. left_off is free text ('S2E4' or '1:23:45', max 24 characters).
+-- finished = true keeps the history but drops it from "Continue watching".
 create table public.in_progress (
   id         uuid primary key default gen_random_uuid(),
-  user_id    uuid not null references public.users (id)  on delete cascade,
+  user_id    uuid not null default auth.uid() references public.users (id)  on delete cascade,
   title_id   uuid not null references public.titles (id) on delete cascade,
   left_off   text not null check (char_length(btrim(left_off)) between 1 and 24),
   finished   boolean not null default false,
@@ -172,14 +146,87 @@ create table public.in_progress (
   updated_at timestamptz not null default now(),
   unique (user_id, title_id)
 );
-
 create index in_progress_title_id_idx on public.in_progress (title_id);
-
 alter table public.in_progress enable row level security;
 
--- Keep updated_at current automatically (the moddatetime extension is available but not installed yet).
+-- Keep updated_at current automatically.
 create extension if not exists moddatetime schema extensions;
 
 create trigger in_progress_set_updated_at
   before update on public.in_progress
   for each row execute function extensions.moddatetime(updated_at);
+
+-- Grants: logged-out visitors get nothing; the catalog is read-only for logged-in users.
+revoke all on public.genres, public.titles, public.title_genres,
+              public.user_genres, public.favorites, public.in_progress from anon;
+revoke insert, update, delete on public.genres, public.titles, public.title_genres from authenticated;
+
+-- Catalog seed (migration auth_02_seed_catalog): the 7 genres below, then supabase/seed.sql.
+insert into public.genres (name) values
+  ('Action'), ('Comedy'), ('Drama'), ('Sci-Fi'), ('Horror'), ('Romance'), ('Thriller');
+
+
+-- ===========================================================================
+-- STEP 3 — RLS policies (migration auth_03_policies)
+-- ===========================================================================
+
+-- users: read + update your own row (name only; email belongs to Supabase Auth)
+create policy "users: read own row" on public.users
+  for select to authenticated
+  using ((select auth.uid()) = id);
+
+create policy "users: update own row" on public.users
+  for update to authenticated
+  using ((select auth.uid()) = id)
+  with check ((select auth.uid()) = id);
+
+revoke update on public.users from authenticated;
+grant update (name) on public.users to authenticated;
+
+-- shared catalog: read-only for logged-in users
+create policy "genres: read for logged-in users" on public.genres
+  for select to authenticated using (true);
+
+create policy "titles: read for logged-in users" on public.titles
+  for select to authenticated using (true);
+
+create policy "title_genres: read for logged-in users" on public.title_genres
+  for select to authenticated using (true);
+
+-- user_genres: owner only
+create policy "user_genres: read own" on public.user_genres
+  for select to authenticated using ((select auth.uid()) = user_id);
+create policy "user_genres: insert own" on public.user_genres
+  for insert to authenticated with check ((select auth.uid()) = user_id);
+create policy "user_genres: update own" on public.user_genres
+  for update to authenticated
+  using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "user_genres: delete own" on public.user_genres
+  for delete to authenticated using ((select auth.uid()) = user_id);
+
+-- favorites: owner only
+create policy "favorites: read own" on public.favorites
+  for select to authenticated using ((select auth.uid()) = user_id);
+create policy "favorites: insert own" on public.favorites
+  for insert to authenticated with check ((select auth.uid()) = user_id);
+create policy "favorites: update own" on public.favorites
+  for update to authenticated
+  using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "favorites: delete own" on public.favorites
+  for delete to authenticated using ((select auth.uid()) = user_id);
+
+-- in_progress: owner only
+create policy "in_progress: read own" on public.in_progress
+  for select to authenticated using ((select auth.uid()) = user_id);
+create policy "in_progress: insert own" on public.in_progress
+  for insert to authenticated with check ((select auth.uid()) = user_id);
+create policy "in_progress: update own" on public.in_progress
+  for update to authenticated
+  using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+create policy "in_progress: delete own" on public.in_progress
+  for delete to authenticated using ((select auth.uid()) = user_id);
+
+-- TRUNCATE ignores RLS: take it away from the API roles.
+revoke truncate on public.users, public.genres, public.titles, public.title_genres,
+                   public.user_genres, public.favorites, public.in_progress
+  from anon, authenticated;

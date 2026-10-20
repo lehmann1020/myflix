@@ -6,6 +6,7 @@ import * as api from '../services/myflixApi.js'
 // State is loaded from Supabase on mount (the database is the source of truth).
 // Favorites and progress update optimistically and roll back if the write fails.
 export function MyFlixProvider({ children }) {
+  const [profile, setProfile] = useState(null)
   const [titles, setTitles] = useState([])
   const [genreOptions, setGenreOptions] = useState([])
   const [genres, setGenresState] = useState([])
@@ -33,6 +34,7 @@ export function MyFlixProvider({ children }) {
       .then((data) => {
         favRef.current = data.favorites
         progressRef.current = data.progress
+        setProfile(data.profile)
         setTitles(data.titles)
         setGenreOptions(data.genreOptions)
         setGenresState(data.genres)
@@ -112,10 +114,10 @@ export function MyFlixProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch,
+      profile, titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch,
       loading, error, actionError, getTitle, openId, setOpenId, playingId, setPlayingId,
     }),
-    [titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch,
+    [profile, titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch,
       loading, error, actionError, getTitle, openId, playingId],
   )
   return <MyFlixContext.Provider value={value}>{children}</MyFlixContext.Provider>
