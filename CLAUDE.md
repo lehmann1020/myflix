@@ -1,12 +1,12 @@
 # MyFlix (full stack)
 
-A personal streaming-style library: browse movies and shows, pick 3 favorite genres, star favorites, and keep a
-"Continue watching" list. Two halves in one repo:
+A personal streaming-style library: register or log in, pick 3 favorite genres, browse movies and shows, star favorites,
+and keep a "Continue watching" list. Each user sees only their own picks, favorites and progress. Two halves in one repo:
 
 | Folder | What it is |
 |---|---|
 | `front-end/` | The React app (React 19 + Vite, React Router DOM with BrowserRouter, plain CSS, desktop only). Specs live in `front-end/app_outline/` (user journey, style guide, per-page user stories). |
-| `supabase/` | The database (Supabase / PostgreSQL 17): `schema.sql`, `seed.sql`, ERD screenshot, `user_stories.md`, `api_notes.md`, and a Postman collection covering all 7 tables. |
+| `supabase/` | The database (Supabase / PostgreSQL 17): `schema.sql`, `seed.sql`, ERD screenshot, `user_stories.md`, `api_notes.md`, and a Postman collection that logs in two test users and covers all 7 tables. |
 
 ## Database (7 tables, all in `public`, all with Row Level Security ON)
 `users` (id = Supabase Auth user id, row created by a trigger), `genres`, `titles` (movies + shows, `type` = `movie` | `show`),
@@ -14,19 +14,23 @@ A personal streaming-style library: browse movies and shows, pick 3 favorite gen
 Read `supabase/api_notes.md` for working example requests, rules and error codes for every table.
 
 ## Current state and rules
-- **Authentication is being added with Supabase Auth** (Register, Log in, Log out, session recovery on refresh).
-  The old TEMPORARY `dev: open access until auth` policies are being removed; do not recreate them.
-- `users.id` is the `auth.users` id, and a trigger creates the `users` row on sign-up. Every `user_id` column is
-  `not null default auth.uid() on delete cascade`; the app never sends a user id.
-- RLS policies are to `authenticated` only. Per-user tables (`favorites`, `in_progress`, `user_genres`) allow only
-  the owner's rows (`auth.uid() = user_id`). Catalog tables (`genres`, `titles`, `title_genres`) are read-only for `authenticated`.
-- Do not change tables, columns, or data without the owner's approval. Do not add new tables beyond the 7 above.
-  The owner has approved the one-time drop and recreate for the auth migration, with CSV backups in `supabase/backups/`.
+- **Authentication is done** (Supabase Auth, email + password, "Confirm email" off for development). The app has
+  `/login` and `/register` (logged-out only); every other page requires a logged-in user (`RequireAuth`). The header shows
+  the user's name and a Log out button; Welcome has a Log out link. A refresh recovers and confirms the saved session.
+- `users.id` is the `auth.users` id, and the `on_auth_user_created` trigger creates the `users` row on sign-up (name from
+  the sign-up metadata). Every `user_id` column is `not null default auth.uid() on delete cascade`; the app never sends a user id.
+- RLS policies are to `authenticated` only; `anon` has no table access. Per-user tables (`favorites`, `in_progress`,
+  `user_genres`) allow only the owner's rows (`auth.uid() = user_id`). Catalog tables (`genres`, `titles`, `title_genres`)
+  are read-only. `users`: read and update (name only) your own row. TRUNCATE is revoked. Do not add `dev:`/anon policies back.
+- Do not change tables, columns, policies, or data without the owner's approval. Do not add new tables beyond the 7 above.
+  `supabase/schema.sql` matches the database; pre-auth CSV backups are in `supabase/backups/` (not re-imported).
 - Talk to the API with the **publishable key only**, read from `import.meta.env` (`VITE_SUPABASE_URL`,
   `VITE_SUPABASE_ANON_KEY` in `front-end/.env`). Never use or commit a secret/service-role key. `.env` must never be committed.
-- Keep all Supabase requests in one service file in the front end; components call that, not `fetch` directly.
-- Preserve the existing UI and user experience. The database is the source of truth: the old in-memory fake data goes away
-  once the real data is wired in.
+- Keep all Supabase requests in one service file, `front-end/src/services/myflixApi.js`; components call that, not `fetch`
+  or supabase-js directly. It uses `@supabase/supabase-js` for auth and plain `fetch` with the user's access token for tables.
+- Auth state lives in `front-end/src/state/AuthProvider.jsx` (`useAuth()`); library data in `MyFlixContext.jsx` (`useMyFlix()`),
+  remounted per user so one user's data never shows for another.
+- Preserve the existing UI and user experience. The database is the source of truth.
 - Desktop only. Verify UI work with the Playwright MCP and database work with the Supabase MCP.
 
 ## Agents and tools
