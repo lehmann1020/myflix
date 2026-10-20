@@ -230,3 +230,21 @@ create policy "in_progress: delete own" on public.in_progress
 revoke truncate on public.users, public.genres, public.titles, public.title_genres,
                    public.user_genres, public.favorites, public.in_progress
   from anon, authenticated;
+
+-- delete_my_account(): lets a logged-in user delete their own login. Deleting the auth user cascades to
+-- public.users and from there to user_genres, favorites and in_progress. Only the caller's own row is touched.
+create or replace function public.delete_my_account()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'Not signed in';
+  end if;
+  delete from auth.users where id = auth.uid();
+end;
+$$;
+revoke all on function public.delete_my_account() from public, anon;
+grant execute on function public.delete_my_account() to authenticated;

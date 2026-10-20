@@ -94,13 +94,13 @@ If you do send someone else's `user_id`, the insert is rejected (403).
 | GET filter | `GET /genres?select=id,name&name=eq.Action` | 200, one row |
 | POST / PATCH / DELETE | any write | 403 `42501` `permission denied for table genres` |
 
-## titles  (24 seeded, movies and shows in one table) — read-only
+## titles  (40 seeded from TMDB, movies and shows in one table) — read-only
 - **GET all** `GET /titles?select=id,name,type&order=name` → 200, 24 rows.
 - **GET filter** `GET /titles?select=id,name,type&type=eq.show&name=eq.Echo%20Drift` → 200, one row.
 - **POST / PATCH / DELETE** → 403 `42501` `permission denied for table titles`.
 - Columns: `name`, `type` (`movie` | `show`), `description`, `full_description`, `why_i_like_it`, `poster_url`, `release_year`.
 
-## title_genres  (39 seeded links) — read-only
+## title_genres  (77 seeded links) — read-only
 - **GET filter** `GET /title_genres?select=*&title_id=eq.<title id>` → 200 (Echo Drift has 2: Sci-Fi, Drama).
 - **GET with genre names** `GET /titles?select=name,title_genres(genres(name))&id=eq.<title id>` → 200.
 - **POST** → 403 `42501`.
@@ -163,6 +163,14 @@ With **no token** (only `apikey`): `GET /titles` and `GET /favorites` → 401 `4
 | All titles with genres (what the app loads) | `GET /titles?select=id,name,type,description,full_description,poster_url,title_genres(genres(name))&order=name` |
 | My favorites, with title info | `GET /favorites?select=created_at,titles(name,type)` |
 | Continue watching, with title info | `GET /in_progress?select=left_off,finished,titles(name,type)&finished=eq.false` |
+
+## Delete account (RPC)
+| Need | Request |
+|---|---|
+| Delete my own account and everything saved under it | `POST /rpc/delete_my_account` with body `{}` and the user's token → 204. Anonymous callers are refused. |
+
+The function is `security definer` and only deletes `auth.uid()`'s own login. Their `users` row, genre picks, favorites and progress go with it (cascade).
+Tested in the app: after the call, the auth user and `users` row were gone and other accounts were untouched.
 
 ## Tricky things
 - No `user_id` filter is needed on the per-user tables: RLS already limits every query to the token's user.
