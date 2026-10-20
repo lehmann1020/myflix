@@ -1,13 +1,213 @@
 {
   "info": {
-    "name": "MyFlix API (CRUD)",
-    "description": "All 7 MyFlix tables: POST, GET all, GET with a filter, PATCH, DELETE. Set the collection variable publishable_key (your sb_publishable_... key), then Run the collection in order. Temporary dev policies must be in place (anon open access). Cleans up after itself.",
+    "name": "MyFlix API (authenticated)",
+    "description": "All 7 MyFlix tables with real logins. Set the collection variable publishable_key (your sb_publishable_... key), then Run the collection in order. Folder 0 signs up (or reuses) two test accounts and saves their access tokens; every table request sends user A's token, and folder 8 uses user B's token to prove RLS isolation. Needs 'Confirm email' OFF in Supabase (Authentication > Sign In / Providers > Email). Cleans up its rows at the end.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
     {
-      "name": "1 genres",
-      "description": "Pick-list of genres. POST creates a throwaway genre, then PATCH and DELETE clean it up.",
+      "name": "0 Auth",
+      "item": [
+        {
+          "name": "Sign up user A",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/v1/signup",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_a}}\",\n  \"password\": \"{{password}}\",\n  \"data\": {\n    \"name\": \"Test User A\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Creates test user A (name goes into the auth metadata; the database trigger copies it into public.users). 422 means the account already exists from an earlier run, which is fine."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 (new account) or 422 (already exists)', () => pm.expect(pm.response.code).to.be.oneOf([200, 422]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign up user B",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/v1/signup",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_b}}\",\n  \"password\": \"{{password}}\",\n  \"data\": {\n    \"name\": \"Test User B\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 (new account) or 422 (already exists)', () => pm.expect(pm.response.code).to.be.oneOf([200, 422]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in user A (saves access_token, user_id)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/v1/token?grant_type=password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_a}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('got an access token', () => pm.expect(j.access_token).to.be.a('string'));",
+                  "if (j.access_token) {",
+                  "  pm.collectionVariables.set('access_token', j.access_token);",
+                  "  pm.collectionVariables.set('user_id', j.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in user B (saves access_token_b, user_id_b)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/v1/token?grant_type=password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_b}}\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('got an access token', () => pm.expect(j.access_token).to.be.a('string'));",
+                  "if (j.access_token) {",
+                  "  pm.collectionVariables.set('access_token_b', j.access_token);",
+                  "  pm.collectionVariables.set('user_id_b', j.user.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Who am I? (user A)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/v1/user"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('token belongs to user A', () => pm.expect(pm.response.json().id).to.eql(pm.collectionVariables.get('user_id')));",
+                  "pm.test('role is authenticated', () => pm.expect(pm.response.json().role).to.eql('authenticated'));"
+                ]
+              }
+            }
+          ]
+        }
+      ],
+      "description": "Sign up (or reuse) two test accounts and sign both in. Every request after this sends a user's access token."
+    },
+    {
+      "name": "1 genres (shared catalog, read-only)",
       "item": [
         {
           "name": "GET all genres",
@@ -16,18 +216,15 @@
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               }
             ],
             "url": "{{base_url}}/rest/v1/genres?select=id,name&order=name"
@@ -38,8 +235,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });",
-                  "pm.collectionVariables.set('action_id', pm.response.json().find(g => g.name === 'Action').id);"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('7 genres', () => pm.expect(pm.response.json()).to.have.length(7));"
                 ]
               }
             }
@@ -52,18 +249,15 @@
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               }
             ],
             "url": "{{base_url}}/rest/v1/genres?select=id,name&name=eq.Action"
@@ -74,43 +268,41 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });",
-                  "pm.test('exactly one row', function () { pm.expect(pm.response.json().length).to.eql(1); });"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const rows = pm.response.json();",
+                  "pm.test('one row', () => pm.expect(rows).to.have.length(1));",
+                  "pm.collectionVariables.set('action_id', rows[0].id);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "POST a genre",
+          "name": "POST a genre -> 403 (catalog is read-only)",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
             "url": "{{base_url}}/rest/v1/genres",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"CRUD Test Genre\"\n}",
+              "raw": "{\n  \"name\": \"Documentary\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -124,43 +316,39 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [201]', function () { pm.expect([201]).to.include(pm.response.code); });",
-                  "pm.collectionVariables.set('genre_id', pm.response.json()[0].id);"
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('permission denied (42501)', () => pm.expect(pm.response.json().code).to.eql('42501'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "PATCH that genre",
+          "name": "PATCH a genre -> 403",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
-            "url": "{{base_url}}/rest/v1/genres?id=eq.{{genre_id}}",
+            "url": "{{base_url}}/rest/v1/genres?id=eq.{{action_id}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"CRUD Test Genre 2\"\n}",
+              "raw": "{\n  \"name\": \"Hacked\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -174,39 +362,36 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });"
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('permission denied (42501)', () => pm.expect(pm.response.json().code).to.eql('42501'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "DELETE that genre",
+          "name": "DELETE a genre -> 403",
           "request": {
             "method": "DELETE",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
-            "url": "{{base_url}}/rest/v1/genres?id=eq.{{genre_id}}"
+            "url": "{{base_url}}/rest/v1/genres?id=eq.{{action_id}}"
           },
           "event": [
             {
@@ -214,7 +399,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200, 204]', function () { pm.expect([200, 204]).to.include(pm.response.code); });"
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('permission denied (42501)', () => pm.expect(pm.response.json().code).to.eql('42501'));"
                 ]
               }
             }
@@ -223,59 +409,8 @@
       ]
     },
     {
-      "name": "2 titles",
-      "description": "Movies and shows. The test show is removed at the end (folder 8) so other folders can use it.",
+      "name": "2 titles (shared catalog, read-only)",
       "item": [
-        {
-          "name": "POST a title",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
-              }
-            ],
-            "url": "{{base_url}}/rest/v1/titles",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"CRUD Test Show\",\n  \"type\": \"show\",\n  \"description\": \"Created by the collection\",\n  \"poster_url\": \"/posters/test.jpg\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is one of [201]', function () { pm.expect([201]).to.include(pm.response.code); });",
-                  "pm.collectionVariables.set('title_id', pm.response.json()[0].id);"
-                ]
-              }
-            }
-          ]
-        },
         {
           "name": "GET all titles",
           "request": {
@@ -283,18 +418,15 @@
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               }
             ],
             "url": "{{base_url}}/rest/v1/titles?select=id,name,type&order=name"
@@ -305,34 +437,32 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('24 titles', () => pm.expect(pm.response.json()).to.have.length(24));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "GET titles with a filter (type = show, this test show)",
+          "name": "GET titles with a filter (type = show, name = Echo Drift)",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/rest/v1/titles?select=name,type&type=eq.show&name=eq.CRUD%20Test%20Show"
+            "url": "{{base_url}}/rest/v1/titles?select=id,name,type&type=eq.show&name=eq.Echo%20Drift"
           },
           "event": [
             {
@@ -340,37 +470,114 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });",
-                  "pm.test('exactly one row', function () { pm.expect(pm.response.json().length).to.eql(1); });"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const rows = pm.response.json();",
+                  "pm.test('one row', () => pm.expect(rows).to.have.length(1));",
+                  "pm.collectionVariables.set('title_id', rows[0].id);"
                 ]
               }
             }
           ]
         },
         {
-          "name": "PATCH that title",
+          "name": "GET titles in the user's genres (Action + Sci-Fi)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/titles?select=name,type,title_genres!inner(genres!inner(name))&title_genres.genres.name=in.(Action,Sci-Fi)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('10 titles', () => pm.expect(pm.response.json()).to.have.length(10));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST a title -> 403",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/titles",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"x\",\n  \"type\": \"movie\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('permission denied (42501)', () => pm.expect(pm.response.json().code).to.eql('42501'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH a title -> 403",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
             "url": "{{base_url}}/rest/v1/titles?id=eq.{{title_id}}",
@@ -390,7 +597,45 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });"
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('permission denied (42501)', () => pm.expect(pm.response.json().code).to.eql('42501'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE a title -> 403",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/titles?id=eq.{{title_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('permission denied (42501)', () => pm.expect(pm.response.json().code).to.eql('42501'));"
                 ]
               }
             }
@@ -399,33 +644,94 @@
       ]
     },
     {
-      "name": "3 title_genres",
-      "description": "",
+      "name": "3 title_genres (shared catalog, read-only)",
       "item": [
         {
-          "name": "POST a genre link",
+          "name": "GET links for the title",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/title_genres?select=*&title_id=eq.{{title_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('2 links (Sci-Fi, Drama)', () => pm.expect(pm.response.json()).to.have.length(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET the title with its genre names",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/titles?select=name,title_genres(genres(name))&id=eq.{{title_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('embedded genres', () => pm.expect(pm.response.json()[0].title_genres).to.have.length(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST a link -> 403",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
             "url": "{{base_url}}/rest/v1/title_genres",
@@ -445,117 +751,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [201]', function () { pm.expect([201]).to.include(pm.response.code); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "GET links for the title",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
-            "url": "{{base_url}}/rest/v1/title_genres?select=*&title_id=eq.{{title_id}}"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "GET the title with its genre names",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              }
-            ],
-            "url": "{{base_url}}/rest/v1/titles?select=name,title_genres(genres(name))&id=eq.{{title_id}}"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "DELETE the link",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
-              }
-            ],
-            "url": "{{base_url}}/rest/v1/title_genres?title_id=eq.{{title_id}}&genre_id=eq.{{action_id}}"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is one of [200, 204]', function () { pm.expect([200, 204]).to.include(pm.response.code); });"
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('permission denied (42501)', () => pm.expect(pm.response.json().code).to.eql('42501'));"
                 ]
               }
             }
@@ -564,28 +761,24 @@
       ]
     },
     {
-      "name": "4 users",
-      "description": "No POST/DELETE here: user rows are created by a trigger when an auth user is created.",
+      "name": "4 users (your own row only)",
       "item": [
         {
-          "name": "GET all users",
+          "name": "GET users -> only my row",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               }
             ],
             "url": "{{base_url}}/rest/v1/users?select=id,name,email"
@@ -596,35 +789,34 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });",
-                  "if (!pm.collectionVariables.get('user_id')) { pm.collectionVariables.set('user_id', pm.response.json()[0].id); }"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const rows = pm.response.json();",
+                  "pm.test('exactly one row', () => pm.expect(rows).to.have.length(1));",
+                  "pm.test('it is me', () => pm.expect(rows[0].id).to.eql(pm.collectionVariables.get('user_id')));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "GET one user (filter by id)",
+          "name": "GET user B's row by id -> empty",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/rest/v1/users?select=id,name&id=eq.{{user_id}}"
+            "url": "{{base_url}}/rest/v1/users?select=id,name&id=eq.{{user_id_b}}"
           },
           "event": [
             {
@@ -632,42 +824,39 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('no rows', () => pm.expect(pm.response.json()).to.have.length(0));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "PATCH the user's name",
+          "name": "PATCH my name",
           "request": {
             "method": "PATCH",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
             "url": "{{base_url}}/rest/v1/users?id=eq.{{user_id}}",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"MyFlix Dev User\"\n}",
+              "raw": "{\n  \"name\": \"Test User A\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -681,7 +870,100 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('name saved', () => pm.expect(pm.response.json()[0].name).to.eql('Test User A'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH my email -> 403 (only name is editable)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/users?id=eq.{{user_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"new@example.com\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('permission denied (42501)', () => pm.expect(pm.response.json().code).to.eql('42501'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST a user -> 403 (the sign-up trigger creates rows)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/users",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"id\": \"{{user_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('permission denied (42501)', () => pm.expect(pm.response.json().code).to.eql('42501'));"
                 ]
               }
             }
@@ -690,8 +972,7 @@
       ]
     },
     {
-      "name": "5 user_genres",
-      "description": "",
+      "name": "5 user_genres (own rows; no user_id sent)",
       "item": [
         {
           "name": "POST a genre pick (pick_order 1)",
@@ -700,29 +981,25 @@
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
             "url": "{{base_url}}/rest/v1/user_genres",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"genre_id\": \"{{action_id}}\",\n  \"pick_order\": 1\n}",
+              "raw": "{\n  \"genre_id\": \"{{action_id}}\",\n  \"pick_order\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -736,34 +1013,32 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [201]', function () { pm.expect([201]).to.include(pm.response.code); });"
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('user_id filled from the token', () => pm.expect(pm.response.json()[0].user_id).to.eql(pm.collectionVariables.get('user_id')));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "GET the user's picks",
+          "name": "GET my picks",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/rest/v1/user_genres?select=*&user_id=eq.{{user_id}}"
+            "url": "{{base_url}}/rest/v1/user_genres?select=pick_order,genres(name)&order=pick_order"
           },
           "event": [
             {
@@ -771,7 +1046,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('one pick', () => pm.expect(pm.response.json()).to.have.length(1));"
                 ]
               }
             }
@@ -784,26 +1060,22 @@
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
-            "url": "{{base_url}}/rest/v1/user_genres?user_id=eq.{{user_id}}&genre_id=eq.{{action_id}}",
+            "url": "{{base_url}}/rest/v1/user_genres?genre_id=eq.{{action_id}}",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"pick_order\": 2\n}",
@@ -820,7 +1092,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('pick_order 2', () => pm.expect(pm.response.json()[0].pick_order).to.eql(2));"
                 ]
               }
             }
@@ -833,26 +1106,22 @@
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
-            "url": "{{base_url}}/rest/v1/user_genres?user_id=eq.{{user_id}}&genre_id=eq.{{action_id}}"
+            "url": "{{base_url}}/rest/v1/user_genres?genre_id=eq.{{action_id}}"
           },
           "event": [
             {
@@ -860,7 +1129,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200, 204]', function () { pm.expect([200, 204]).to.include(pm.response.code); });"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('one row deleted', () => pm.expect(pm.response.json()).to.have.length(1));"
                 ]
               }
             }
@@ -869,8 +1139,7 @@
       ]
     },
     {
-      "name": "6 favorites",
-      "description": "",
+      "name": "6 favorites (own rows; no user_id sent)",
       "item": [
         {
           "name": "POST a favorite",
@@ -879,23 +1148,442 @@
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/favorites",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title_id\": \"{{title_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('user_id filled from the token', () => pm.expect(pm.response.json()[0].user_id).to.eql(pm.collectionVariables.get('user_id')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET my favorites (with title info)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/favorites?select=created_at,titles(name,type)"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Echo Drift', () => pm.expect(pm.response.json()[0].titles.name).to.eql('Echo Drift'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7 in_progress (own rows; no user_id sent)",
+      "item": [
+        {
+          "name": "POST where I left off (S2E4)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/in_progress",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title_id\": \"{{title_id}}\",\n  \"left_off\": \"S2E4\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "const row = pm.response.json()[0];",
+                  "pm.test('finished defaults to false', () => pm.expect(row.finished).to.eql(false));",
+                  "pm.collectionVariables.set('progress_updated_at', row.updated_at);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Continue watching (unfinished, with title info)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/in_progress?select=left_off,finished,titles(name,type)&finished=eq.false"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('S2E4', () => pm.expect(pm.response.json()[0].left_off).to.eql('S2E4'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PATCH left_off to S2E5",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/in_progress?title_id=eq.{{title_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"left_off\": \"S2E5\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "const row = pm.response.json()[0];",
+                  "pm.test('S2E5', () => pm.expect(row.left_off).to.eql('S2E5'));",
+                  "pm.test('updated_at refreshed', () => pm.expect(row.updated_at).to.not.eql(pm.collectionVariables.get('progress_updated_at')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Upsert (what the app sends): POST with on_conflict",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/in_progress?on_conflict=user_id,title_id",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title_id\": \"{{title_id}}\",\n  \"left_off\": \"S2E6\",\n  \"finished\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// The upsert also needs Prefer: resolution=merge-duplicates",
+                  "pm.request.headers.upsert({ key: 'Prefer', value: 'resolution=merge-duplicates,return=representation' });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200 or 201', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "pm.test('S2E6', () => pm.expect(pm.response.json()[0].left_off).to.eql('S2E6'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8 Isolation: user B vs user A's rows",
+      "item": [
+        {
+          "name": "B: GET favorites -> doesn't see A's",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_b}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/favorites?select=*"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('no rows', () => pm.expect(pm.response.json()).to.have.length(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B: GET in_progress -> doesn't see A's",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_b}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/in_progress?select=*"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('no rows', () => pm.expect(pm.response.json()).to.have.length(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B: PATCH A's in_progress -> 0 rows changed",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_b}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/in_progress?title_id=eq.{{title_id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"left_off\": \"HACKED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('nothing changed', () => pm.expect(pm.response.json()).to.have.length(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B: DELETE A's favorite -> 0 rows deleted",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_b}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/favorites?title_id=eq.{{title_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('nothing deleted', () => pm.expect(pm.response.json()).to.have.length(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "B: POST a favorite as user A -> 403 (RLS with check)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_b}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
               }
             ],
             "url": "{{base_url}}/rest/v1/favorites",
@@ -915,34 +1603,32 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [201]', function () { pm.expect([201]).to.include(pm.response.code); });"
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('permission denied (42501)', () => pm.expect(pm.response.json().code).to.eql('42501'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "GET the user's favorites (with title info)",
+          "name": "A: still has the favorite and S2E6",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/rest/v1/favorites?select=created_at,titles(name,type)&user_id=eq.{{user_id}}"
+            "url": "{{base_url}}/rest/v1/in_progress?select=left_off"
           },
           "event": [
             {
@@ -950,129 +1636,28 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('A still at S2E6', () => pm.expect(pm.response.json()[0].left_off).to.eql('S2E6'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "DELETE the favorite",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
-              }
-            ],
-            "url": "{{base_url}}/rest/v1/favorites?user_id=eq.{{user_id}}&title_id=eq.{{title_id}}"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is one of [200, 204]', function () { pm.expect([200, 204]).to.include(pm.response.code); });"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "name": "7 in_progress",
-      "description": "",
-      "item": [
-        {
-          "name": "POST where the user left off (S2E4)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
-              }
-            ],
-            "url": "{{base_url}}/rest/v1/in_progress",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"title_id\": \"{{title_id}}\",\n  \"left_off\": \"S2E4\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is one of [201]', function () { pm.expect([201]).to.include(pm.response.code); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "GET Continue watching (unfinished, with title info)",
+          "name": "Logged out (no token): GET titles -> 401",
           "request": {
             "method": "GET",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/rest/v1/in_progress?select=left_off,finished,titles(name,type)&user_id=eq.{{user_id}}&finished=eq.false"
+            "url": "{{base_url}}/rest/v1/titles?select=id"
           },
           "event": [
             {
@@ -1080,48 +1665,28 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });"
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('permission denied (42501)', () => pm.expect(pm.response.json().code).to.eql('42501'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "PATCH left_off to S2E5",
+          "name": "Logged out (no token): GET favorites -> 401",
           "request": {
-            "method": "PATCH",
+            "method": "GET",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "application/json"
               }
             ],
-            "url": "{{base_url}}/rest/v1/in_progress?user_id=eq.{{user_id}}&title_id=eq.{{title_id}}",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"left_off\": \"S2E5\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
+            "url": "{{base_url}}/rest/v1/favorites?select=id"
           },
           "event": [
             {
@@ -1129,205 +1694,19 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200]', function () { pm.expect([200]).to.include(pm.response.code); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "DELETE the progress row",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
-              }
-            ],
-            "url": "{{base_url}}/rest/v1/in_progress?user_id=eq.{{user_id}}&title_id=eq.{{title_id}}"
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is one of [200, 204]', function () { pm.expect([200, 204]).to.include(pm.response.code); });"
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('permission denied (42501)', () => pm.expect(pm.response.json().code).to.eql('42501'));"
                 ]
               }
             }
           ]
         }
-      ]
+      ],
+      "description": "Proves RLS: B can't read, change, delete, or create A's rows, and logged-out requests get nothing."
     },
     {
-      "name": "8 Expected errors (these SHOULD fail)",
-      "description": "Each request here is supposed to be rejected; the test passes when it IS rejected.",
+      "name": "9 Expected errors (these SHOULD fail)",
       "item": [
-        {
-          "name": "POST duplicate genre name -> 409",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
-              }
-            ],
-            "url": "{{base_url}}/rest/v1/genres",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Action\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is one of [409]', function () { pm.expect([409]).to.include(pm.response.code); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST genre with a blank name -> 400",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
-              }
-            ],
-            "url": "{{base_url}}/rest/v1/genres",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"   \"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is one of [400]', function () { pm.expect([400]).to.include(pm.response.code); });"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "POST title with a bad type -> 400",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
-              },
-              {
-                "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
-              }
-            ],
-            "url": "{{base_url}}/rest/v1/titles",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"x\",\n  \"type\": \"podcast\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status is one of [400]', function () { pm.expect([400]).to.include(pm.response.code); });"
-                ]
-              }
-            }
-          ]
-        },
         {
           "name": "POST pick_order 4 -> 400",
           "request": {
@@ -1335,29 +1714,25 @@
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
             "url": "{{base_url}}/rest/v1/user_genres",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"genre_id\": \"{{action_id}}\",\n  \"pick_order\": 4\n}",
+              "raw": "{\n  \"genre_id\": \"{{action_id}}\",\n  \"pick_order\": 4\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1371,42 +1746,39 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [400]', function () { pm.expect([400]).to.include(pm.response.code); });"
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('check violation 23514', () => pm.expect(pm.response.json().code).to.eql('23514'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "POST favorite for a user that doesn't exist -> 409",
+          "name": "POST the same favorite twice -> 409",
           "request": {
             "method": "POST",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
             "url": "{{base_url}}/rest/v1/favorites",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user_id\": \"00000000-0000-0000-0000-000000000000\",\n  \"title_id\": \"{{title_id}}\"\n}",
+              "raw": "{\n  \"title_id\": \"{{title_id}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1420,7 +1792,54 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [409]', function () { pm.expect([409]).to.include(pm.response.code); });"
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('unique violation 23505', () => pm.expect(pm.response.json().code).to.eql('23505'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST favorite for a title that doesn't exist -> 409",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/favorites",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title_id\": \"00000000-0000-0000-0000-000000000000\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('foreign key violation 23503', () => pm.expect(pm.response.json().code).to.eql('23503'));"
                 ]
               }
             }
@@ -1433,29 +1852,25 @@
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
             "url": "{{base_url}}/rest/v1/in_progress",
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"user_id\": \"{{user_id}}\",\n  \"title_id\": \"{{title_id}}\",\n  \"left_off\": \"\"\n}",
+              "raw": "{\n  \"title_id\": \"{{title_id}}\",\n  \"left_off\": \"\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1469,7 +1884,46 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [400]', function () { pm.expect([400]).to.include(pm.response.code); });"
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('check violation 23514', () => pm.expect(pm.response.json().code).to.eql('23514'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bad password -> 400",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/v1/token?grant_type=password",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email_a}}\",\n  \"password\": \"wrong-password\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('invalid_credentials', () => pm.expect(pm.response.json().error_code).to.eql('invalid_credentials'));"
                 ]
               }
             }
@@ -1478,36 +1932,31 @@
       ]
     },
     {
-      "name": "9 Cleanup",
-      "description": "Run this last so no test rows stay in your tables.",
+      "name": "10 Cleanup",
       "item": [
         {
-          "name": "DELETE the test title (also removes anything attached to it)",
+          "name": "DELETE my favorite",
           "request": {
             "method": "DELETE",
             "header": [
               {
                 "key": "apikey",
-                "value": "{{publishable_key}}",
-                "type": "text"
+                "value": "{{publishable_key}}"
               },
               {
                 "key": "Authorization",
-                "value": "Bearer {{publishable_key}}",
-                "type": "text"
+                "value": "Bearer {{access_token}}"
               },
               {
                 "key": "Content-Type",
-                "value": "application/json",
-                "type": "text"
+                "value": "application/json"
               },
               {
                 "key": "Prefer",
-                "value": "return=representation",
-                "type": "text"
+                "value": "return=representation"
               }
             ],
-            "url": "{{base_url}}/rest/v1/titles?id=eq.{{title_id}}"
+            "url": "{{base_url}}/rest/v1/favorites?title_id=eq.{{title_id}}"
           },
           "event": [
             {
@@ -1515,13 +1964,116 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status is one of [200, 204]', function () { pm.expect([200, 204]).to.include(pm.response.code); });"
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('one row deleted', () => pm.expect(pm.response.json()).to.have.length(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE my progress row",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Prefer",
+                "value": "return=representation"
+              }
+            ],
+            "url": "{{base_url}}/rest/v1/in_progress?title_id=eq.{{title_id}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('one row deleted', () => pm.expect(pm.response.json()).to.have.length(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign out user A",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/v1/logout"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign out user B",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "apikey",
+                "value": "{{publishable_key}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{access_token_b}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/v1/logout"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 204', () => pm.response.to.have.status(204));"
                 ]
               }
             }
           ]
         }
-      ]
+      ],
+      "description": "Removes the rows this run created and signs both users out. The two test accounts stay in Authentication > Users (the publishable key can't delete accounts); delete them there if you want a clean list."
     }
   ],
   "variable": [
@@ -1534,19 +2086,43 @@
       "value": ""
     },
     {
+      "key": "email_a",
+      "value": "myflix-test-a@example.com"
+    },
+    {
+      "key": "email_b",
+      "value": "myflix-test-b@example.com"
+    },
+    {
+      "key": "password",
+      "value": "TestPass123!"
+    },
+    {
+      "key": "access_token",
+      "value": ""
+    },
+    {
       "key": "user_id",
-      "value": "f3295010-a4ae-4244-946e-c6f7cd3cdf3c"
+      "value": ""
+    },
+    {
+      "key": "access_token_b",
+      "value": ""
+    },
+    {
+      "key": "user_id_b",
+      "value": ""
     },
     {
       "key": "action_id",
       "value": ""
     },
     {
-      "key": "genre_id",
+      "key": "title_id",
       "value": ""
     },
     {
-      "key": "title_id",
+      "key": "progress_updated_at",
       "value": ""
     }
   ]
