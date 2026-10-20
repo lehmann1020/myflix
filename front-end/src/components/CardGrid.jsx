@@ -8,7 +8,7 @@ export default function CardGrid({ title, items, empty }) {
       {items.length === 0 ? (
         <div className="shelf-empty">
           <p>{empty}</p>
-          <Link to="/" className="btn-primary link-btn">Browse titles</Link>
+          <Link to="/browse" className="btn-primary link-btn">Browse titles</Link>
         </div>
       ) : (
         <div className="card-grid">

@@ -30,12 +30,13 @@ export default function Layout() {
         <Link to="/" className="wordmark">MyFlix</Link>
         <nav aria-label="Main">
           <NavLink to="/" end>Home</NavLink>
+          <NavLink to="/browse">Browse</NavLink>
           <NavLink to="/watching">Watching</NavLink>
           <NavLink to="/favorites">Favorites</NavLink>
         </nav>
         <Link to="/welcome" className="nav-secondary">Change genres</Link>
         <div className="nav-user">
-          <span className="nav-user-name" title={user?.email}>{displayName}</span>
+          <NavLink to="/profile" className="nav-user-name" title={user?.email}>{displayName}</NavLink>
           <button type="button" className="btn-ghost" onClick={onSignOut} disabled={signingOut}>
             {signingOut ? 'Logging out…' : 'Log out'}
           </button>

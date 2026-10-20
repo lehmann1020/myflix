@@ -47,6 +47,14 @@ export async function signOut() {
   if (error) throw authError(error)
 }
 
+// Permanently deletes the logged-in user's account and everything saved under it. The database function
+// delete_my_account() removes only the caller's own login; their picks, favorites and progress cascade.
+export async function deleteAccount() {
+  await request('/rpc/delete_my_account', { method: 'POST', body: {} })
+  // The login no longer exists on the server, so just clear the saved session from this browser.
+  await supabase.auth.signOut({ scope: 'local' })
+}
+
 // Recovers the session saved in this browser (e.g. after a refresh) and confirms it with Supabase.
 // Returns the user, or null if nobody is logged in or the saved session is no longer valid.
 export async function getCurrentUser() {

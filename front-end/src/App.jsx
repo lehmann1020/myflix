@@ -9,6 +9,8 @@ import Welcome from './pages/Welcome.jsx'
 import Home from './pages/Home.jsx'
 import Watching from './pages/Watching.jsx'
 import Favorites from './pages/Favorites.jsx'
+import Browse from './pages/Browse.jsx'
+import Profile from './pages/Profile.jsx'
 
 export default function App() {
   return (
@@ -24,6 +26,8 @@ export default function App() {
             <Route index element={<Home />} />
             <Route path="watching" element={<Watching />} />
             <Route path="favorites" element={<Favorites />} />
+            <Route path="browse" element={<Browse />} />
+            <Route path="profile" element={<Profile />} />
           </Route>
         </Route>
       </Route>

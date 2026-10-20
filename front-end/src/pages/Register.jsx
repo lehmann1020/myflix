@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import PasswordField from '../components/PasswordField.jsx'
 import { useAuth } from '../state/useAuth.js'
 
 const MIN_PASSWORD = 6 // Supabase's default minimum
@@ -10,11 +11,18 @@ export default function Register() {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(null)
 
+  const mismatch = confirm !== '' && confirm !== password
+
   async function onSubmit(e) {
     e.preventDefault()
+    if (password !== confirm) {
+      setError(new Error('The two passwords do not match'))
+      return
+    }
     setSubmitting(true)
     setError(null)
     try {
@@ -41,18 +49,24 @@ export default function Register() {
           <span>Email</span>
           <input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </label>
-        <label className="auth-field">
-          <span>Password</span>
-          <input
-            type="password"
-            autoComplete="new-password"
-            required
-            minLength={MIN_PASSWORD}
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-          />
-          <small>At least {MIN_PASSWORD} characters.</small>
-        </label>
+        <PasswordField
+          label="Password"
+          autoComplete="new-password"
+          required
+          minLength={MIN_PASSWORD}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          hint={<small>At least {MIN_PASSWORD} characters.</small>}
+        />
+        <PasswordField
+          label="Confirm password"
+          autoComplete="new-password"
+          required
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          invalid={mismatch}
+          hint={mismatch && <small className="auth-error" role="alert">Passwords don’t match yet.</small>}
+        />
 
         {error && (
           <p className="auth-error" role="alert">{friendly(error)}</p>
