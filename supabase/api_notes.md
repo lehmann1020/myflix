@@ -172,6 +172,15 @@ With **no token** (only `apikey`): `GET /titles` and `GET /favorites` → 401 `4
 The function is `security definer` and only deletes `auth.uid()`'s own login. Their `users` row, genre picks, favorites and progress go with it (cascade).
 Tested in the app: after the call, the auth user and `users` row were gone and other accounts were untouched.
 
+## Edge functions (`supabase/functions/`)
+Called at `{{project_url}}/functions/v1/<name>` with the user's token (JWT verification on). The TMDB key is the Supabase secret `TMDB_API_KEY`; it never reaches the browser.
+| Function | Request | Returns |
+|---|---|---|
+| `tmdb-trailer` | `GET ?title=Interstellar&type=movie&year=2014` (`type` = `movie` \| `show`, `year` optional) | 200 `{"key":"<YouTube id>","name":"…","type":"Trailer"}` (falls back to Teaser/Clip/Featurette); 404 if TMDB has no video; 400 if params are missing |
+| `tmdb-titles` | `GET ?count=20` | `{"titles":[…]}` — popular movies and shows, shaped for the `titles` table (used once to build `seed.sql`) |
+| `hello-world`, `add-numbers`, `multiply` | course exercises | `{"message":…}`, `{"result":…}` |
+Tested: 39 of the 40 seeded titles return a video; *The Daily Show* has none (the app shows "No trailer is available").
+
 ## Tricky things
 - No `user_id` filter is needed on the per-user tables: RLS already limits every query to the token's user.
 - A request that touches someone else's row returns **200 `[]`**, not an error. Check the row count if you need to know.

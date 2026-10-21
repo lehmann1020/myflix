@@ -55,6 +55,25 @@ export async function deleteAccount() {
   await supabase.auth.signOut({ scope: 'local' })
 }
 
+// Finds a trailer for a title on TMDB through the tmdb-trailer edge function (the TMDB key stays on the server).
+// Resolves to { key, name, type } where key is a YouTube video id; throws if there is none.
+export async function getTrailer({ title, type, year }) {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session) throw new Error('You are not logged in')
+  const params = new URLSearchParams({ title, type })
+  if (year) params.set('year', year)
+  const res = await fetch(`${URL}/functions/v1/tmdb-trailer?${params}`, {
+    headers: { apikey: KEY, Authorization: `Bearer ${session.access_token}` },
+  })
+  const data = safeJson(await res.text())
+  if (!res.ok) {
+    const err = new Error(data?.error ?? `Trailer lookup failed (${res.status})`)
+    err.status = res.status
+    throw err
+  }
+  return data
+}
+
 // Recovers the session saved in this browser (e.g. after a refresh) and confirms it with Supabase.
 // Returns the user, or null if nobody is logged in or the saved session is no longer valid.
 export async function getCurrentUser() {
@@ -145,6 +164,7 @@ function toTitle(row) {
     description: row.description,
     full: row.full_description,
     poster: row.poster_url,
+    year: row.release_year,
     hue: hueFor(row.id),
   }
 }
@@ -154,7 +174,7 @@ export async function loadAll() {
   const [profileRows, genreRows, titleRows, pickRows, favRows, progressRows] = await Promise.all([
     request('/users?select=name,email'),
     request('/genres?select=id,name&order=name'),
-    request('/titles?select=id,name,type,description,full_description,poster_url,title_genres(genres(name))&order=name'),
+    request('/titles?select=id,name,type,description,full_description,poster_url,release_year,title_genres(genres(name))&order=name'),
     request('/user_genres?select=pick_order,genres(name)&order=pick_order'),
     request('/favorites?select=title_id'),
     request('/in_progress?select=title_id,left_off&finished=eq.false'),

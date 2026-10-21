@@ -15,3 +15,4 @@ As the owner, clicking a card opens a larger view with the full description so I
 - Opens from any card on any page; backdrop dims the page
 - Closes via X, backdrop click, or Escape; focus trapped inside and returned to the card on close
 - Star and progress edits update the rest of the app instantly
+- A separate "Watch trailer" button opens a TMDB trailer (YouTube embed) above the details; "Hide trailer" closes it. Titles without a trailer show "No trailer is available for this title."
