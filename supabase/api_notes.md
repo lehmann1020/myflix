@@ -191,6 +191,7 @@ Called at `{{project_url}}/functions/v1/<name>` with the user's token (JWT verif
 | `tmdb-titles` | `GET ?count=20` | `{"titles":[…]}` — popular movies and shows, shaped for the `titles` table (used once to build `seed.sql`) |
 | `create-payment-intent` | `POST` (logged-in user; no body) | 200 `{"clientSecret","amount","currency"}`; 401 if not logged in; 409 `You already have Premium.`; price is set on the server (499 cents, usd) |
 | `stripe-webhook` | `POST` from Stripe only (JWT verification off; authenticated by Stripe's signature) | 200 `{"received":true}`; 400 invalid/missing signature; 500 if the Stripe secrets aren't set (so Stripe retries). Handles `payment_intent.succeeded` and `payment_intent.payment_failed`, idempotent |
+| `tmdb-runtime` | `GET ?title=Interstellar&year=2014` | 200 `{tmdb_id, tmdb_title, release_year, runtime_minutes}` — used once to fill `titles.runtime_minutes` |
 | `tmdb-season` | `GET ?title=The Office&year=2005&season=1` (`year`, `season` optional; season defaults to 1) | 200 `{tmdb_id, tmdb_name, first_air_year, season, episodes:[{episode_number,name,overview,runtime_minutes,air_date}]}` — used once to build the `episodes` seed |
 | `hello-world`, `add-numbers`, `multiply` | course exercises | `{"message":…}`, `{"result":…}` |
 Tested: 39 of the 40 seeded titles return a video; *The Daily Show* has none (the app shows "No trailer is available").

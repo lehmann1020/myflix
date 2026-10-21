@@ -510,3 +510,15 @@ select t.id, 1, v.n, v.name, v.ov, v.rt, v.ad from public.titles t,
   (20, 'Free Fall', 'As the rookies prepare for a big exam to see who moves on to the next stage of training, Officer Nolan and Officer Bishop are called to...', 43, '2019-04-16'::date)
 ) as v(n, name, ov, rt, ad)
 where t.type = 'show' and t.name = 'The Rookie';
+
+-- Movie runtimes in minutes, from TMDB (fetched by the tmdb-runtime edge function). Matched to titles by NAME.
+update public.titles t set runtime_minutes = v.rt
+from (values
+  ('Spider-Man: Brand New Day', 145), ('Runner', 97), ('Animals', 106), ('Insidious: Out of the Further', 106),
+  ('Corpse Bride', 77), ('The Odyssey', 173), ('Toy Story 5', 102), ('Interstellar', 169),
+  ('Resident Evil', 95), ('The Love Hypothesis', 112), ('Fall 2: Deadpoint', 98), ('Clue', 94),
+  ('Top Gun: Maverick', 131), ('Resident Evil: Welcome to Raccoon City', 107), ('Titanic', 194),
+  ('The End of Oak Street', 100), ('Coyote vs. Acme', 103), ('Oppenheimer', 181), ('Obsession', 109),
+  ('Wicked: For Good', 137)
+) as v(name, rt)
+where t.type = 'movie' and t.name = v.name;

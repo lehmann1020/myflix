@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMyFlix } from '../state/useMyFlix.js'
 import { getTrailer } from '../services/myflixApi.js'
-import { episodeLabel } from '../data/progress.js'
+import { episodeLabel, formatRuntime } from '../data/progress.js'
 import Poster from './Poster.jsx'
 
 export default function DetailModal() {
@@ -84,7 +84,10 @@ function Dialog({ item }) {
         <div className="modal-head">
           <div>
             <h2 id="modal-title">{item.title}</h2>
-            <p className="modal-meta">{item.type === 'show' ? 'Show' : 'Movie'} · {item.genres.join(' · ')}</p>
+            <p className="modal-meta">
+              {item.type === 'show' ? 'Show' : 'Movie'} · {item.genres.join(' · ')}
+              {item.runtime && <> · {formatRuntime(item.runtime)}</>}
+            </p>
           </div>
           <button
             type="button"

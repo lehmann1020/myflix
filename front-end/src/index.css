@@ -266,6 +266,10 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .player-content h2 { font-size: clamp(2rem, 5vw, 3.5rem); }
 .player-sub { margin: 0; color: var(--muted); font-size: 1.125rem; }
 .player-content .btn-primary { margin-top: 16px; }
+.player-controls { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.player-controls .btn-primary { margin-top: 0; }
+.player-pause { min-height: 48px; padding: 0 28px; font-size: 1rem; }
+.player-eq.paused i { animation-play-state: paused; }
 .player-eq { display: flex; align-items: flex-end; gap: 4px; height: 28px; margin: 0; }
 .player-eq i { width: 5px; height: 100%; border-radius: 2px; background: var(--accent); transform-origin: bottom; animation: eq 900ms ease-in-out infinite alternate; }
 .player-eq i:nth-child(2) { animation-delay: -300ms; }
@@ -336,3 +340,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .episode-play { flex: none; align-self: center; }
 .player-nav { display: flex; gap: 12px; }
 .player-nav .btn-ghost { min-height: 44px; padding: 0 20px; font-size: 1rem; }
+
+.player-clock { margin: 0; font-size: clamp(2rem, 6vw, 4rem); font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: 0.02em; }
+
+.player-total { color: var(--muted); font-weight: 400; font-size: 0.6em; }

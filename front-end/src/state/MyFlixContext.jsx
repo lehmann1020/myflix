@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MyFlixContext } from './context.js'
-import { episodeSession, nextProgress } from '../data/progress.js'
+import { episodeSession, moviePosition, nextProgress } from '../data/progress.js'
 import * as api from '../services/myflixApi.js'
 
 // State is loaded from Supabase on mount (the database is the source of truth).
@@ -85,13 +85,11 @@ export function MyFlixProvider({ children }) {
     })
   }, [enqueue])
 
-  // Starts a watch session: opens the player, moves "left off" on right away, and saves it (or marks the
-  // title finished when `saved` is null). Rolls back if the write fails.
-  const startSession = useCallback((item, { playingFrom, saved }) => {
-    setActionError(null)
-    setPlayingId(item.id)
-    setPlayingFrom(playingFrom) // "Left off" moves on at once, but the player shows where this session starts
+  // Changes "left off" right away and saves it, or marks the title finished when `saved` is null.
+  // Rolls back if the write fails.
+  const commitProgress = useCallback((item, saved) => {
     const before = progressRef.current[item.id]
+    if ((saved ?? undefined) === before) return
     const next = { ...progressRef.current }
     if (saved) next[item.id] = saved
     else delete next[item.id]
@@ -108,7 +106,21 @@ export function MyFlixProvider({ children }) {
     })
   }, [enqueue])
 
-  // Watch / Resume: the next part of the title (next episode, or the next 20 minutes of a movie).
+  // Starts a watch session: opens the player and puts the title on Continue watching right away.
+  const startSession = useCallback((item, { playingFrom, saved }) => {
+    setActionError(null)
+    setPlayingId(item.id)
+    setPlayingFrom(playingFrom) // for shows "left off" is this episode; the player shows where the session started
+    commitProgress(item, saved)
+  }, [commitProgress])
+
+  // Saves how far into a movie you actually got (called when you stop, and every 30 seconds while playing).
+  const savePosition = useCallback(
+    (item, seconds) => commitProgress(item, moviePosition(item, seconds)),
+    [commitProgress],
+  )
+
+  // Watch / Resume: the next episode of a show, or a movie from where you left off.
   const watch = useCallback(
     (item) => startSession(item, nextProgress(item, progressRef.current[item.id])),
     [startSession],
@@ -138,11 +150,11 @@ export function MyFlixProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      profile, titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch, playEpisode,
+      profile, titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch, playEpisode, savePosition,
       premium, refreshPremium,
       loading, error, actionError, getTitle, openId, setOpenId, playingId, setPlayingId, playingFrom,
     }),
-    [profile, titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch, playEpisode,
+    [profile, titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch, playEpisode, savePosition,
       premium, refreshPremium,
       loading, error, actionError, getTitle, openId, playingId, playingFrom],
   )

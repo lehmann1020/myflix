@@ -97,6 +97,7 @@ create table public.titles (
   why_i_like_it    text,
   poster_url       text,
   release_year     smallint check (release_year between 1888 and 2200),
+  runtime_minutes  smallint check (runtime_minutes > 0), -- movies only, from TMDB; null for shows (episodes have their own)
   created_at       timestamptz not null default now(),
   unique (type, name)
 );

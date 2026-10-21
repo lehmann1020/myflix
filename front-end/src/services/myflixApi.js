@@ -184,6 +184,7 @@ function toTitle(row, episodes = []) {
     full: row.full_description,
     poster: row.poster_url,
     year: row.release_year,
+    runtime: row.runtime_minutes, // minutes; movies only
     episodes, // Season 1 for shows, in order; empty for movies
     hue: hueFor(row.id),
   }
@@ -194,7 +195,7 @@ export async function loadAll() {
   const [profileRows, genreRows, titleRows, pickRows, favRows, progressRows, premium, episodeRows] = await Promise.all([
     request('/users?select=name,email'),
     request('/genres?select=id,name&order=name'),
-    request('/titles?select=id,name,type,description,full_description,poster_url,release_year,title_genres(genres(name))&order=name'),
+    request('/titles?select=id,name,type,description,full_description,poster_url,release_year,runtime_minutes,title_genres(genres(name))&order=name'),
     request('/user_genres?select=pick_order,genres(name)&order=pick_order'),
     request('/favorites?select=title_id'),
     request('/in_progress?select=title_id,left_off&finished=eq.false'),
