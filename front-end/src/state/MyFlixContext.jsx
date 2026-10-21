@@ -17,6 +17,7 @@ export function MyFlixProvider({ children }) {
   const [actionError, setActionError] = useState(null)
   const [openId, setOpenId] = useState(null)
   const [playingId, setPlayingId] = useState(null)
+  const [playingFrom, setPlayingFrom] = useState(null) // where the current session starts, for the player screen
 
   // Mirrors of the latest state so handlers can read it synchronously (rapid clicks).
   const favRef = useRef(favorites)
@@ -87,6 +88,8 @@ export function MyFlixProvider({ children }) {
     setPlayingId(item.id)
     const before = progressRef.current[item.id]
     const value = nextProgress(item, before)
+    // "Left off" moves on as soon as you watch, but a movie plays from where it was left (0:00:00 if new).
+    setPlayingFrom(item.type === 'show' ? value : (before ?? '0:00:00'))
     const next = { ...progressRef.current }
     if (value) next[item.id] = value
     else delete next[item.id]
@@ -115,10 +118,10 @@ export function MyFlixProvider({ children }) {
   const value = useMemo(
     () => ({
       profile, titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch,
-      loading, error, actionError, getTitle, openId, setOpenId, playingId, setPlayingId,
+      loading, error, actionError, getTitle, openId, setOpenId, playingId, setPlayingId, playingFrom,
     }),
     [profile, titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch,
-      loading, error, actionError, getTitle, openId, playingId],
+      loading, error, actionError, getTitle, openId, playingId, playingFrom],
   )
   return <MyFlixContext.Provider value={value}>{children}</MyFlixContext.Provider>
 }

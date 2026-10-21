@@ -8,7 +8,7 @@ export default function PlayerScreen() {
 }
 
 function Player({ item }) {
-  const { progress, setPlayingId } = useMyFlix()
+  const { playingFrom, setPlayingId } = useMyFlix()
   const ref = useRef(null)
   const [closing, setClosing] = useState(false)
 
@@ -40,7 +40,7 @@ function Player({ item }) {
       <div className="player-content">
         <p className="player-eq" aria-hidden="true"><i /><i /><i /><i /></p>
         <h2 id="player-title">Playing the {item.title}</h2>
-        {progress[item.id] && <p className="player-sub">{item.type === 'show' ? 'Episode' : 'From'} {progress[item.id]}</p>}
+        {playingFrom && <p className="player-sub">{item.type === 'show' ? 'Episode' : 'From'} {playingFrom}</p>}
         <button type="button" className="btn-primary" onClick={close} autoFocus>Stop</button>
       </div>
     </dialog>
