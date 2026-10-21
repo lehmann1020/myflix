@@ -11,6 +11,7 @@ import Watching from './pages/Watching.jsx'
 import Favorites from './pages/Favorites.jsx'
 import Browse from './pages/Browse.jsx'
 import Profile from './pages/Profile.jsx'
+import Premium from './pages/Premium.jsx'
 
 export default function App() {
   return (
@@ -28,6 +29,7 @@ export default function App() {
             <Route path="favorites" element={<Favorites />} />
             <Route path="browse" element={<Browse />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="premium" element={<Premium />} />
           </Route>
         </Route>
       </Route>

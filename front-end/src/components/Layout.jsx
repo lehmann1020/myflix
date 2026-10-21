@@ -6,7 +6,7 @@ import DetailModal from './DetailModal.jsx'
 import PlayerScreen from './PlayerScreen.jsx'
 
 export default function Layout() {
-  const { actionError, profile } = useMyFlix()
+  const { actionError, profile, premium } = useMyFlix()
   const { user, signOut } = useAuth()
   const [signingOut, setSigningOut] = useState(false)
   const [signOutError, setSignOutError] = useState(null)
@@ -33,6 +33,7 @@ export default function Layout() {
           <NavLink to="/browse">Browse</NavLink>
           <NavLink to="/watching">Watching</NavLink>
           <NavLink to="/favorites">Favorites</NavLink>
+          <NavLink to="/premium">{premium ? <>Premium <span aria-hidden="true">★</span></> : 'Go Premium'}</NavLink>
         </nav>
         <Link to="/welcome" className="nav-secondary">Change genres</Link>
         <div className="nav-user">

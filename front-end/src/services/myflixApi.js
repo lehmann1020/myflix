@@ -55,23 +55,42 @@ export async function deleteAccount() {
   await supabase.auth.signOut({ scope: 'local' })
 }
 
-// Finds a trailer for a title on TMDB through the tmdb-trailer edge function (the TMDB key stays on the server).
-// Resolves to { key, name, type } where key is a YouTube video id; throws if there is none.
-export async function getTrailer({ title, type, year }) {
+// Calls a Supabase Edge Function with the logged-in user's token. Throws with the function's own
+// error message (and .status) when it answers with an error.
+async function callFunction(name, { method = 'GET', params } = {}) {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) throw new Error('You are not logged in')
-  const params = new URLSearchParams({ title, type })
-  if (year) params.set('year', year)
-  const res = await fetch(`${URL}/functions/v1/tmdb-trailer?${params}`, {
+  const query = params ? `?${new URLSearchParams(params)}` : ''
+  const res = await fetch(`${URL}/functions/v1/${name}${query}`, {
+    method,
     headers: { apikey: KEY, Authorization: `Bearer ${session.access_token}` },
   })
   const data = safeJson(await res.text())
   if (!res.ok) {
-    const err = new Error(data?.error ?? `Trailer lookup failed (${res.status})`)
+    const err = new Error(data?.error ?? `${name} failed (${res.status})`)
     err.status = res.status
     throw err
   }
   return data
+}
+
+// Finds a trailer for a title on TMDB through the tmdb-trailer edge function (the TMDB key stays on the server).
+// Resolves to { key, name, type } where key is a YouTube video id; throws if there is none.
+export function getTrailer({ title, type, year }) {
+  return callFunction('tmdb-trailer', { params: { title, type, ...(year ? { year } : {}) } })
+}
+
+// Asks the server to create a Stripe Payment Intent for Premium (the server sets the price and holds the
+// Stripe secret key). Resolves to { clientSecret, amount, currency }.
+export function createPaymentIntent() {
+  return callFunction('create-payment-intent', { method: 'POST' })
+}
+
+// True once the Stripe webhook has recorded a successful payment for this user. The webhook, not the
+// browser, writes to `payments`, so this only ever reflects what Stripe confirmed.
+export async function hasPremium() {
+  const rows = await request('/payments?select=id&status=eq.succeeded&limit=1')
+  return rows.length > 0
 }
 
 // Recovers the session saved in this browser (e.g. after a refresh) and confirms it with Supabase.
@@ -155,7 +174,7 @@ function hueFor(id) {
   return Math.abs(h) % 360
 }
 
-function toTitle(row) {
+function toTitle(row, episodes = []) {
   return {
     id: row.id,
     title: row.name,
@@ -165,30 +184,41 @@ function toTitle(row) {
     full: row.full_description,
     poster: row.poster_url,
     year: row.release_year,
+    episodes, // Season 1 for shows, in order; empty for movies
     hue: hueFor(row.id),
   }
 }
 
 // RLS returns only the logged-in user's rows, so the per-user queries need no user filter.
 export async function loadAll() {
-  const [profileRows, genreRows, titleRows, pickRows, favRows, progressRows] = await Promise.all([
+  const [profileRows, genreRows, titleRows, pickRows, favRows, progressRows, premium, episodeRows] = await Promise.all([
     request('/users?select=name,email'),
     request('/genres?select=id,name&order=name'),
     request('/titles?select=id,name,type,description,full_description,poster_url,release_year,title_genres(genres(name))&order=name'),
     request('/user_genres?select=pick_order,genres(name)&order=pick_order'),
     request('/favorites?select=title_id'),
     request('/in_progress?select=title_id,left_off&finished=eq.false'),
+    hasPremium(),
+    request('/episodes?select=title_id,season,episode_number,name,overview,runtime_minutes&order=title_id,season,episode_number'),
   ])
+
+  const episodesByTitle = new Map()
+  for (const e of episodeRows) {
+    const list = episodesByTitle.get(e.title_id) ?? []
+    list.push({ season: e.season, number: e.episode_number, name: e.name, overview: e.overview, runtime: e.runtime_minutes })
+    episodesByTitle.set(e.title_id, list)
+  }
 
   genreIdsByName = new Map(genreRows.map((g) => [g.name, g.id]))
 
   return {
     profile: profileRows[0] ?? null,
     genreOptions: genreRows.map((g) => g.name),
-    titles: titleRows.map(toTitle),
+    titles: titleRows.map((row) => toTitle(row, episodesByTitle.get(row.id))),
     genres: pickRows.map((p) => p.genres?.name).filter(Boolean),
     favorites: new Set(favRows.map((f) => f.title_id)),
     progress: Object.fromEntries(progressRows.map((p) => [p.title_id, p.left_off])),
+    premium,
   }
 }
 

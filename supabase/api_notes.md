@@ -172,12 +172,26 @@ With **no token** (only `apikey`): `GET /titles` and `GET /favorites` → 401 `4
 The function is `security definer` and only deletes `auth.uid()`'s own login. Their `users` row, genre picks, favorites and progress go with it (cascade).
 Tested in the app: after the call, the auth user and `users` row were gone and other accounts were untouched.
 
+## episodes  (281 seeded: Season 1 of all 20 shows) — read-only
+- Columns: `title_id`, `season`, `episode_number`, `name`, `overview` (trimmed to 140 chars), `runtime_minutes`, `air_date`. Unique on (`title_id`, `season`, `episode_number`).
+- The app loads them all in one request: `GET /episodes?select=title_id,season,episode_number,name,overview,runtime_minutes&order=title_id,season,episode_number`.
+- Counts per show come from TMDB (6 for *The Office* up to 23 for *NCIS*). *The Daily Show* is oddly numbered on TMDB: 1–6, then 56.
+
+## payments  (Premium purchases) — read-only from the app
+- Columns: `stripe_payment_intent_id` (unique), `amount` (cents), `currency`, `status` (`succeeded` | `failed`), `created_at`.
+- The app can only `GET /payments?select=id&status=eq.succeeded&limit=1` (your own rows). Tested as a logged-in user:
+  `POST`, `PATCH` and `DELETE` all return 403 `42501`, so nobody can fake a purchase from the browser.
+- Rows are written by the `stripe-webhook` edge function only. Deleting an account deletes its payment rows (Stripe keeps its own record).
+
 ## Edge functions (`supabase/functions/`)
-Called at `{{project_url}}/functions/v1/<name>` with the user's token (JWT verification on). The TMDB key is the Supabase secret `TMDB_API_KEY`; it never reaches the browser.
+Called at `{{project_url}}/functions/v1/<name>` with the user's token (JWT verification on). Secrets (Supabase → Edge Functions → Secrets, never in the repo): `TMDB_API_KEY`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`. None reach the browser.
 | Function | Request | Returns |
 |---|---|---|
 | `tmdb-trailer` | `GET ?title=Interstellar&type=movie&year=2014` (`type` = `movie` \| `show`, `year` optional) | 200 `{"key":"<YouTube id>","name":"…","type":"Trailer"}` (falls back to Teaser/Clip/Featurette); 404 if TMDB has no video; 400 if params are missing |
 | `tmdb-titles` | `GET ?count=20` | `{"titles":[…]}` — popular movies and shows, shaped for the `titles` table (used once to build `seed.sql`) |
+| `create-payment-intent` | `POST` (logged-in user; no body) | 200 `{"clientSecret","amount","currency"}`; 401 if not logged in; 409 `You already have Premium.`; price is set on the server (499 cents, usd) |
+| `stripe-webhook` | `POST` from Stripe only (JWT verification off; authenticated by Stripe's signature) | 200 `{"received":true}`; 400 invalid/missing signature; 500 if the Stripe secrets aren't set (so Stripe retries). Handles `payment_intent.succeeded` and `payment_intent.payment_failed`, idempotent |
+| `tmdb-season` | `GET ?title=The Office&year=2005&season=1` (`year`, `season` optional; season defaults to 1) | 200 `{tmdb_id, tmdb_name, first_air_year, season, episodes:[{episode_number,name,overview,runtime_minutes,air_date}]}` — used once to build the `episodes` seed |
 | `hello-world`, `add-numbers`, `multiply` | course exercises | `{"message":…}`, `{"result":…}` |
 Tested: 39 of the 40 seeded titles return a video; *The Daily Show* has none (the app shows "No trailer is available").
 

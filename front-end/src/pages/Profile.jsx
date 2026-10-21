@@ -6,7 +6,7 @@ import { useAuth } from '../state/useAuth.js'
 const CONFIRM_WORD = 'DELETE'
 
 export default function Profile() {
-  const { profile, genres, favorites, progress } = useMyFlix()
+  const { profile, genres, favorites, progress, premium } = useMyFlix()
   const { user } = useAuth()
   const inProgress = Object.keys(progress).length
 
@@ -24,6 +24,13 @@ export default function Profile() {
               {genres.length ? genres.join(', ') : 'None picked yet'}
               {' · '}
               <Link to="/welcome" className="profile-link">Change</Link>
+            </dd>
+          </div>
+          <div>
+            <dt>Plan</dt>
+            <dd>
+              {premium ? 'Premium' : 'Free'}
+              {!premium && <> · <Link to="/premium" className="profile-link">Go Premium</Link></>}
             </dd>
           </div>
           <div><dt>Favorites</dt><dd>{favorites.size}</dd></div>

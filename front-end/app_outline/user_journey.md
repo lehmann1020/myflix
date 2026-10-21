@@ -9,7 +9,7 @@
 3. **Home (`/`)** — nav bar, then two carousels with left/right arrows:
    - **I think you'd like** — catalog titles matching the 3 genres.
    - **Continue watching** — titles with a timestamp/episode entered (empty-state message at first).
-4. **On any card** — hover highlights; star toggles favorite; Watch/Resume button simulates watching: "Left off" is read-only and updates only when watching (shows advance one episode, S1E1 → S1E2 …, 8 per season; movies advance 20 minutes and clear at 2:00:00); click opens the detail modal.
+4. **On any card** — hover highlights; star toggles favorite; Watch/Resume button simulates watching: "Left off" is read-only and updates only when watching (shows play their real Season 1 episodes in order, S1E1 → S1E2 …, and clear after the last one; movies advance 20 minutes and clear at 2:00:00); click opens the detail modal.
 5. **Detail modal** — large poster, full description, "why I like it", favorite star, progress input.
 6. **Currently Watching (`/watching`)** — all cards with progress entered.
 7. **Favorites (`/favorites`)** — all starred cards.

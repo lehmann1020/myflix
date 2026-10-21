@@ -248,3 +248,42 @@ end;
 $$;
 revoke all on function public.delete_my_account() from public, anon;
 grant execute on function public.delete_my_account() to authenticated;
+
+-- payments — one row per Stripe payment for Premium. Written ONLY by the stripe-webhook edge function
+-- (service_role, after it verifies Stripe's signature); the API can only read your own rows.
+-- stripe_payment_intent_id is unique so a webhook delivered twice cannot create a duplicate.
+create table public.payments (
+  id                       uuid primary key default gen_random_uuid(),
+  user_id                  uuid not null references public.users (id) on delete cascade,
+  stripe_payment_intent_id text not null unique,
+  amount                   integer not null check (amount > 0),
+  currency                 text not null,
+  status                   text not null check (status in ('succeeded', 'failed')),
+  created_at               timestamptz not null default now()
+);
+create index payments_user_id_idx on public.payments (user_id);
+alter table public.payments enable row level security;
+create policy "payments: read own" on public.payments
+  for select to authenticated using ((select auth.uid()) = user_id);
+revoke all on public.payments from anon, authenticated;
+grant select on public.payments to authenticated;
+
+-- episodes — Season 1 of every show (shared catalog, read-only from the app). Loaded from TMDB (see seed.sql).
+-- episode_number follows TMDB, so it can have gaps (The Daily Show's Season 1 jumps from 6 to 56).
+create table public.episodes (
+  id              uuid primary key default gen_random_uuid(),
+  title_id        uuid not null references public.titles (id) on delete cascade,
+  season          smallint not null default 1 check (season >= 1),
+  episode_number  smallint not null check (episode_number >= 1),
+  name            text not null check (btrim(name) <> ''),
+  overview        text,
+  runtime_minutes smallint check (runtime_minutes > 0),
+  air_date        date,
+  unique (title_id, season, episode_number)
+);
+create index episodes_title_id_idx on public.episodes (title_id);
+alter table public.episodes enable row level security;
+create policy "episodes: read all" on public.episodes
+  for select to authenticated using (true);
+revoke all on public.episodes from anon, authenticated;
+grant select on public.episodes to authenticated;

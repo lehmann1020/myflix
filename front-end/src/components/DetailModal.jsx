@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMyFlix } from '../state/useMyFlix.js'
 import { getTrailer } from '../services/myflixApi.js'
+import { episodeLabel } from '../data/progress.js'
 import Poster from './Poster.jsx'
 
 export default function DetailModal() {
@@ -10,7 +11,7 @@ export default function DetailModal() {
 }
 
 function Dialog({ item }) {
-  const { favorites, toggleFavorite, progress, watch, setOpenId } = useMyFlix()
+  const { favorites, toggleFavorite, progress, watch, playEpisode, setOpenId } = useMyFlix()
   const ref = useRef(null)
   const [closing, setClosing] = useState(false)
   const [showTrailer, setShowTrailer] = useState(false)
@@ -98,6 +99,40 @@ function Dialog({ item }) {
           </button>
         </div>
         <p className="modal-full">{item.full}</p>
+        {item.episodes.length > 0 && (
+          <section className="episodes" aria-labelledby="episodes-heading">
+            <h3 id="episodes-heading">
+              Season {item.episodes[0].season} · {item.episodes.length} {item.episodes.length === 1 ? 'episode' : 'episodes'}
+            </h3>
+            <ol className="episode-list">
+              {item.episodes.map((ep) => {
+                const label = episodeLabel(ep)
+                const current = progress[item.id] === label
+                return (
+                  <li key={label} className={`episode${current ? ' current' : ''}`}>
+                    <span className="episode-num">{ep.number}</span>
+                    <div>
+                      <p className="episode-title">
+                        {ep.name}
+                        {current && <span className="episode-badge">Left off</span>}
+                      </p>
+                      {ep.runtime && <p className="episode-meta">{ep.runtime} min</p>}
+                      {ep.overview && <p className="episode-desc">{ep.overview}</p>}
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-ghost episode-play"
+                      aria-label={`Play episode ${ep.number}: ${ep.name}`}
+                      onClick={() => playEpisode(item, label)}
+                    >
+                      Play
+                    </button>
+                  </li>
+                )
+              })}
+            </ol>
+          </section>
+        )}
         <div className="modal-watch">
           <p className="modal-left">Left off <strong>{progress[item.id] ?? 'Not started'}</strong></p>
           <div className="modal-actions">

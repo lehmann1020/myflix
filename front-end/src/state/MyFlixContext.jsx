@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MyFlixContext } from './context.js'
-import { nextProgress } from '../data/progress.js'
+import { episodeSession, nextProgress } from '../data/progress.js'
 import * as api from '../services/myflixApi.js'
 
 // State is loaded from Supabase on mount (the database is the source of truth).
@@ -12,6 +12,7 @@ export function MyFlixProvider({ children }) {
   const [genres, setGenresState] = useState([])
   const [favorites, setFavorites] = useState(() => new Set())
   const [progress, setProgress] = useState({})
+  const [premium, setPremium] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [actionError, setActionError] = useState(null)
@@ -41,6 +42,7 @@ export function MyFlixProvider({ children }) {
         setGenresState(data.genres)
         setFavorites(data.favorites)
         setProgress(data.progress)
+        setPremium(data.premium)
       })
       .catch((err) => setError(err))
       .finally(() => setLoading(false))
@@ -83,20 +85,20 @@ export function MyFlixProvider({ children }) {
     })
   }, [enqueue])
 
-  const watch = useCallback((item) => {
+  // Starts a watch session: opens the player, moves "left off" on right away, and saves it (or marks the
+  // title finished when `saved` is null). Rolls back if the write fails.
+  const startSession = useCallback((item, { playingFrom, saved }) => {
     setActionError(null)
     setPlayingId(item.id)
+    setPlayingFrom(playingFrom) // "Left off" moves on at once, but the player shows where this session starts
     const before = progressRef.current[item.id]
-    const value = nextProgress(item, before)
-    // "Left off" moves on as soon as you watch, but a movie plays from where it was left (0:00:00 if new).
-    setPlayingFrom(item.type === 'show' ? value : (before ?? '0:00:00'))
     const next = { ...progressRef.current }
-    if (value) next[item.id] = value
+    if (saved) next[item.id] = saved
     else delete next[item.id]
     applyProgress(next)
 
-    enqueue(`prog:${item.id}`, () => (value ? api.saveProgress(item.id, value) : api.markFinished(item.id))).catch((err) => {
-      if (progressRef.current[item.id] === (value ?? undefined)) {
+    enqueue(`prog:${item.id}`, () => (saved ? api.saveProgress(item.id, saved) : api.markFinished(item.id))).catch((err) => {
+      if (progressRef.current[item.id] === (saved ?? undefined)) {
         const rollback = { ...progressRef.current }
         if (before) rollback[item.id] = before
         else delete rollback[item.id]
@@ -106,10 +108,29 @@ export function MyFlixProvider({ children }) {
     })
   }, [enqueue])
 
+  // Watch / Resume: the next part of the title (next episode, or the next 20 minutes of a movie).
+  const watch = useCallback(
+    (item) => startSession(item, nextProgress(item, progressRef.current[item.id])),
+    [startSession],
+  )
+
+  // Play one chosen episode of a show.
+  const playEpisode = useCallback(
+    (item, label) => startSession(item, episodeSession(item, label)),
+    [startSession],
+  )
+
   // Saves to the database first; state changes only after success. Throws on failure.
   const setGenres = useCallback(async (names) => {
     await api.saveGenres(names)
     setGenresState(names)
+  }, [])
+
+  // Re-reads Premium from the database (the webhook may take a moment after a payment). Returns the new value.
+  const refreshPremium = useCallback(async () => {
+    const value = await api.hasPremium()
+    setPremium(value)
+    return value
   }, [])
 
   const titlesById = useMemo(() => new Map(titles.map((t) => [t.id, t])), [titles])
@@ -117,10 +138,12 @@ export function MyFlixProvider({ children }) {
 
   const value = useMemo(
     () => ({
-      profile, titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch,
+      profile, titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch, playEpisode,
+      premium, refreshPremium,
       loading, error, actionError, getTitle, openId, setOpenId, playingId, setPlayingId, playingFrom,
     }),
-    [profile, titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch,
+    [profile, titles, genreOptions, genres, setGenres, favorites, toggleFavorite, progress, watch, playEpisode,
+      premium, refreshPremium,
       loading, error, actionError, getTitle, openId, playingId, playingFrom],
   )
   return <MyFlixContext.Provider value={value}>{children}</MyFlixContext.Provider>

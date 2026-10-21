@@ -6,11 +6,13 @@ and keep a "Continue watching" list. Each user sees only their own picks, favori
 | Folder | What it is |
 |---|---|
 | `front-end/` | The React app (React 19 + Vite, React Router DOM with BrowserRouter, plain CSS, desktop only). Specs live in `front-end/app_outline/` (user journey, style guide, per-page user stories). |
-| `supabase/` | The database (Supabase / PostgreSQL 17): `schema.sql`, `seed.sql`, ERD screenshot, `user_stories.md`, `api_notes.md`, and a Postman collection that logs in two test users and covers all 7 tables. |
+| `supabase/` | The database (Supabase / PostgreSQL 17): `schema.sql`, `seed.sql`, ERD screenshot, `user_stories.md`, `api_notes.md`, and a Postman collection that logs in two test users and covers the original 7 tables. |
 
-## Database (7 tables, all in `public`, all with Row Level Security ON)
+## Database (9 tables, all in `public`, all with Row Level Security ON)
 `users` (id = Supabase Auth user id, row created by a trigger), `genres`, `titles` (movies + shows, `type` = `movie` | `show`),
-`title_genres`, `user_genres` (at most 3 picks per user), `favorites`, `in_progress` (`left_off` is free text like `S2E4`).
+`title_genres`, `user_genres` (at most 3 picks per user), `favorites`, `in_progress` (`left_off` is free text like `S2E4`),
+`episodes` (Season 1 of every show, from TMDB; read-only), `payments` (one row per Stripe Premium payment; read-only from
+the app, written only by the `stripe-webhook` edge function).
 Read `supabase/api_notes.md` for working example requests, rules and error codes for every table.
 
 ## Current state and rules
@@ -22,10 +24,14 @@ Read `supabase/api_notes.md` for working example requests, rules and error codes
 - RLS policies are to `authenticated` only; `anon` has no table access. Per-user tables (`favorites`, `in_progress`,
   `user_genres`) allow only the owner's rows (`auth.uid() = user_id`). Catalog tables (`genres`, `titles`, `title_genres`)
   are read-only. `users`: read and update (name only) your own row. TRUNCATE is revoked. Do not add `dev:`/anon policies back.
-- Do not change tables, columns, policies, or data without the owner's approval. Do not add new tables beyond the 7 above.
+- Do not change tables, columns, policies, or data without the owner's approval. Do not add new tables beyond the 9 above (`payments` and `episodes` were approved by the owner).
   `supabase/schema.sql` matches the database; pre-auth CSV backups are in `supabase/backups/` (not re-imported).
 - Talk to the API with the **publishable key only**, read from `import.meta.env` (`VITE_SUPABASE_URL`,
-  `VITE_SUPABASE_ANON_KEY` in `front-end/.env`). Never use or commit a secret/service-role key. `.env` must never be committed.
+  `VITE_SUPABASE_ANON_KEY` in `front-end/.env`). Never use or commit a secret/service-role key in the app or repo. `.env` must never be committed.
+  **One owner-approved exception:** the `stripe-webhook` edge function writes `payments` with the service-role key that Supabase injects
+  into the function at runtime (it is never in the repo, `.env` or the browser). Nothing else may use it.
+- Stripe (one-time Premium payment, test mode): `VITE_STRIPE_PUBLISHABLE_KEY` in `front-end/.env`; `STRIPE_SECRET_KEY` and
+  `STRIPE_WEBHOOK_SECRET` only in Supabase Edge Function secrets. The server sets the price; the webhook is the source of truth for payments.
 - Keep all Supabase requests in one service file, `front-end/src/services/myflixApi.js`; components call that, not `fetch`
   or supabase-js directly. It uses `@supabase/supabase-js` for auth and plain `fetch` with the user's access token for tables.
 - Auth state lives in `front-end/src/state/AuthProvider.jsx` (`useAuth()`); library data in `MyFlixContext.jsx` (`useMyFlix()`),
